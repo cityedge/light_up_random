@@ -1,0 +1,2662 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Light Up Random v1.0.0</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #1a1e27;
+      --panel-2: #202634;
+      --text: #eef2f7;
+      --muted: #a7b0bf;
+      --line: #364052;
+      --white-cell: #ebe5d8;
+      --white-cell-unlit: #cfc6b4;
+      --lit-cell: #fff2a8;
+      --black-cell: #111111;
+      --accent: #75d5ff;
+      --accent-2: #a8eb8f;
+      --danger: #ff6477;
+      --warn: #ffb84d;
+      --cell-size: min(10.5vw, 56px);
+      --radius: 12px;
+      --shadow: 0 18px 48px rgba(0,0,0,.34);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(117, 213, 255, .12), transparent 34rem),
+        radial-gradient(circle at bottom right, rgba(168, 235, 143, .08), transparent 36rem),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      width: min(1280px, calc(100vw - 28px));
+      height: 100vh;
+      margin: 0 auto;
+      padding: 22px 0 22px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      flex: 0 0 auto;
+    }
+
+    .title-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 4vw, 42px);
+      letter-spacing: .02em;
+    }
+
+    .version-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 9px;
+      border: 1px solid rgba(117, 213, 255, .38);
+      border-radius: 999px;
+      background: rgba(117, 213, 255, .12);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 760px;
+    }
+
+    .lang-wrap { display: flex; gap: 8px; align-items: center; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
+      gap: 18px;
+      align-items: stretch;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .board-panel, .side-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)), var(--panel);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .board-panel {
+      padding: clamp(10px, 1.6vw, 20px);
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .side-panel {
+      padding: 18px;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .controls.full { grid-template-columns: 1fr; }
+    .controls.top-controls { grid-template-columns: 1.1fr 1fr 1fr; }
+    .controls.action-controls { grid-template-columns: repeat(3, 1fr); }
+    .controls.action-controls button {
+      min-height: 36px;
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+
+    button, select, input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 10px;
+      background: var(--panel-2);
+      color: var(--text);
+      font: inherit;
+      min-height: 42px;
+      padding: 8px 12px;
+    }
+
+    button {
+      cursor: pointer;
+      transition: transform .08s ease, background .14s ease, border-color .14s ease;
+    }
+
+    body.generating,
+    body.generating * { cursor: wait !important; }
+
+    body.generating button,
+    body.generating select,
+    body.generating input {
+      pointer-events: none;
+      opacity: .72;
+    }
+
+    button:hover { background: #2a3244; border-color: rgba(117,213,255,.45); }
+    button:active { transform: translateY(1px); }
+    button.primary { background: #123346; border-color: rgba(117,213,255,.55); }
+    button.danger { background: #381923; border-color: rgba(255,100,119,.45); }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), var(--cell-size));
+      grid-template-rows: repeat(var(--rows), var(--cell-size));
+      gap: 2px;
+      width: max-content;
+      max-width: 100%;
+      max-height: 100%;
+      margin: 0 auto;
+      background: #06070a;
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: var(--cell-size);
+      height: var(--cell-size);
+      min-width: 0;
+      min-height: 0;
+      border: 0;
+      border-radius: 4px;
+      font-weight: 800;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .cell.white {
+      background: var(--white-cell);
+      color: #1b1b1f;
+    }
+
+    .cell.white.unlit {
+      background: var(--white-cell-unlit);
+      background-image: radial-gradient(circle at center, rgba(0,0,0,.08) 0 1px, transparent 2px);
+    }
+
+    .cell.white.lit {
+      background: var(--lit-cell);
+      box-shadow: inset 0 0 0 999px rgba(255,255,255,.06);
+    }
+
+    .cell.white.conflict {
+      outline: 3px solid var(--danger);
+      outline-offset: -4px;
+      background: #ffd0d6;
+    }
+
+    .cell.black {
+      background: linear-gradient(145deg, #080808, #181818);
+      color: #f4f4f4;
+      border: 1px solid #000;
+      font-size: calc(var(--cell-size) * .42);
+    }
+
+    .cell.black.clue-ok {
+      box-shadow: inset 0 0 0 2px rgba(168,235,143,.92);
+    }
+
+    .cell.black.clue-bad {
+      box-shadow: inset 0 0 0 3px rgba(255,100,119,.92);
+      color: #ffdce1;
+    }
+
+    .bulb-icon {
+      width: calc(var(--cell-size) * .45);
+      height: calc(var(--cell-size) * .45);
+      border-radius: 50% 50% 45% 45%;
+      background: radial-gradient(circle at 35% 30%, #fff, #ffe66f 42%, #f2a900 78%);
+      border: 2px solid rgba(0,0,0,.28);
+      box-shadow: 0 0 12px rgba(255,207,64,.8);
+    }
+
+    .bulb-icon::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 64%;
+      width: calc(var(--cell-size) * .22);
+      height: calc(var(--cell-size) * .08);
+      transform: translateX(-50%);
+      border-radius: 2px;
+      background: #4b4b4b;
+    }
+
+    .mark-icon {
+      font-size: calc(var(--cell-size) * .55);
+      color: rgba(34,34,38,.62);
+      font-weight: 900;
+    }
+
+    .answer-dot {
+      position: absolute;
+      inset: auto 5px 5px auto;
+      width: calc(var(--cell-size) * .2);
+      height: calc(var(--cell-size) * .2);
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid rgba(0,0,0,.42);
+      box-shadow: 0 0 10px rgba(117,213,255,.8);
+    }
+
+    .status {
+      display: grid;
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.045);
+      color: var(--muted);
+    }
+
+    .status-row strong { color: var(--text); }
+    .status-row.solved { background: rgba(168,235,143,.13); color: #cfffc1; }
+    .status-row.warn { background: rgba(255,184,77,.11); color: #ffd89c; }
+    .status-row.bad { background: rgba(255,100,119,.12); color: #ffdce1; }
+
+
+
+    .debug-panel {
+      border-top: 1px solid rgba(255,255,255,.08);
+      margin-top: 16px;
+      padding-top: 14px;
+    }
+
+    .debug-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .debug-note {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .debug-section {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .debug-section h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      color: #dce5f2;
+    }
+
+    .debug-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .debug-metric {
+      min-height: 54px;
+      padding: 8px 9px;
+      border-radius: 8px;
+      background: rgba(0,0,0,.16);
+    }
+
+    .debug-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .debug-metric strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .debug-profile {
+      display: flex;
+      align-items: end;
+      gap: 3px;
+      height: 42px;
+      padding: 6px;
+      border-radius: 8px;
+      background: rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+
+    .debug-bar {
+      flex: 1 1 3px;
+      min-width: 3px;
+      max-width: 18px;
+      border-radius: 3px 3px 0 0;
+      background: rgba(117,213,255,.72);
+    }
+
+    .debug-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .debug-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .debug-table th, .debug-table td {
+      padding: 5px 4px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      text-align: left;
+    }
+
+    .debug-table td:last-child, .debug-table th:last-child { text-align: right; }
+
+
+
+    .detail-actions {
+      border-top: 1px solid rgba(255,255,255,.08);
+      margin-top: 14px;
+      padding-top: 14px;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(0,0,0,.62);
+      z-index: 50;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal-dialog {
+      width: min(980px, calc(100vw - 32px));
+      max-height: min(86vh, 900px);
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)), var(--panel);
+      box-shadow: 0 26px 80px rgba(0,0,0,.55);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.09);
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: .02em;
+    }
+
+    .modal-close {
+      width: auto;
+      min-width: 80px;
+      min-height: 36px;
+      padding: 6px 12px;
+    }
+
+    .modal-body {
+      overflow: auto;
+      padding: 14px 16px 18px;
+      font-size: 12px;
+    }
+
+    .modal-body .debug-section { margin-top: 10px; }
+    .modal-body .debug-metric { min-height: 48px; }
+    .modal-body .debug-metric strong { font-size: 14px; }
+
+    .help {
+      border-top: 1px solid rgba(255,255,255,.08);
+      margin-top: 16px;
+      padding-top: 14px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .help p { margin: 0 0 8px; }
+    .seed-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .seed-row button { width: auto; min-width: 84px; }
+    .forced-option span::after { content: " *"; color: var(--accent); }
+
+    @media (max-width: 1050px) {
+      .controls.top-controls { grid-template-columns: 1fr; }
+      .controls.action-controls { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    .toast {
+      min-height: 26px;
+      color: var(--accent);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 850px) {
+      body { overflow: auto; }
+      .app {
+        width: min(1120px, calc(100vw - 28px));
+        height: auto;
+        min-height: 100vh;
+        display: block;
+        padding-bottom: 36px;
+      }
+      .layout { grid-template-columns: 1fr; }
+      header { flex-direction: column; }
+      .board-panel {
+        padding: 12px;
+        display: flex;
+        overflow: hidden;
+      }
+      .side-panel {
+        max-height: none;
+        overflow-y: visible;
+      }
+      :root { --cell-size: min(12vw, 54px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <div class="title-line"><h1 data-i18n="title">Light Up Random</h1><span class="version-badge" title="Light Up Random v1.0.0">v1.0.0</span></div>
+        <p class="subtitle" data-i18n="subtitle">照明を置いて、すべての白マスを照らしてください。数字付き黒マスは、上下左右に隣接する照明の数を表します。</p>
+      </div>
+      <div class="lang-wrap">
+        <button id="langBtn" type="button" data-tip="tipLangBtn">English</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="board-panel" aria-label="Puzzle board">
+        <div id="board" class="board"></div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="controls top-controls">
+          <label><span data-i18n="size">サイズ</span>
+            <select id="sizeSelect" data-tip="tipSizeSelect">
+              <option value="10x10" selected>10 x 10 / やさしい</option>
+              <option value="18x10">10 x 18 / ふつう</option>
+              <option value="18x14">14 x 18 / やや難しい</option>
+              <option value="24x14">14 x 24 / 難しい</option>
+            </select>
+          </label>
+          <label><span data-i18n="lookaheadOption">仮置き</span>
+            <select id="lookaheadSelect" data-tip="tipLookaheadSelect">
+              <option value="no" selected data-i18n="noLookahead">許容しない</option>
+              <option value="allow" data-i18n="allowLookahead">許容する</option>
+            </select>
+          </label>
+          <label><span data-i18n="clueReductionOption">数字削除</span>
+            <select id="clueModeSelect" data-tip="tipClueModeSelect">
+              <option value="uniqueLimit" selected data-i18n="clueUniqueLimit">限界まで削除</option>
+              <option value="capped" data-i18n="clueCapped">上限付き削除</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="controls action-controls">
+          <button id="newBtn" class="primary" type="button" data-i18n="newPuzzle" data-tip="tipNewPuzzle">新規作成</button>
+          <button id="resetBtn" type="button" data-i18n="reset" data-tip="tipReset">リセット</button>
+          <button id="answerBtn" type="button" data-i18n="showAnswer" data-tip="tipAnswer">答え表示</button>
+        </div>
+
+        <div id="toast" class="toast"></div>
+
+        <div id="status" class="status"></div>
+
+        <div class="controls full">
+          <label><span data-i18n="seed">シード</span>
+            <div class="seed-row">
+              <input id="seedInput" type="text" spellcheck="false" data-tip="tipSeedInput" />
+              <button id="seedBtn" type="button" data-i18n="useSeed" data-tip="tipSeedBtn">適用</button>
+            </div>
+          </label>
+        </div>
+
+        <div class="detail-actions">
+          <button id="detailsBtn" type="button" data-i18n="detailsButton" data-tip="tipDetailsBtn">詳細問題データ</button>
+        </div>
+
+        <div class="help">
+          <p data-i18n="help1">白マスを左クリックすると照明を置く/外す、右クリックすると×印メモを付ける/外すことができます。×印は解答判定には影響しません。</p>
+          <p data-i18n="help2">現在のランダム生成は、完全ソルバーで一意解を確認した問題だけを採用します。×印はメモであり、判定には影響しません。</p>
+          <p data-i18n="help3">赤い照明は、同じ行または列で別の照明を照らしている違反です。</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+
+  <div id="detailsModal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="detailsTitle">
+      <div class="modal-header">
+        <h2 id="detailsTitle" data-i18n="detailsTitle">詳細問題データ</h2>
+        <button id="detailsCloseBtn" class="modal-close" type="button" data-i18n="close">閉じる</button>
+      </div>
+      <div id="detailContent" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    const APP_VERSION = "1.0.0";
+
+    const I18N = {
+      ja: {
+        title: "Light Up Random",
+        subtitle: "ランダム生成された Light Up パズルを解きます。照明を置いて、すべての白マスを照らしてください。",
+        size: "盤面サイズ",
+        difficulty: "生成条件",
+        lookaheadOption: "仮置き",
+        noLookahead: "許容しない",
+        allowLookahead: "許容する",
+        clueReductionOption: "数字削除",
+        clueUniqueLimit: "限界まで削除",
+        clueCapped: "上限付き削除",
+        easy: "Easy",
+        normal: "Normal",
+        hard: "Hard",
+        detailSizeExperimental: "実験",
+        statusDifficulty: "難易度評価",
+        qualityScore: "解き味",
+        detailsButton: "詳細問題データ",
+        detailsTitle: "詳細問題データ",
+        close: "閉じる",
+        newPuzzle: "新規作成",
+        reset: "リセット",
+        check: "チェック",
+        showAnswer: "答え表示",
+        hideAnswer: "答えを隠す",
+        seed: "シード",
+        useSeed: "適用",
+        help1: "白マスを左クリックすると照明を置く/外す、右クリックすると×印メモを付ける/外すことができます。×印は解答判定には影響しません。",
+        help2: "ランダム生成は、完全ソルバーで一意解を確認した問題だけを採用します。条件によっては生成に時間がかかります。",
+        uniqueStatus: "解の一意性",
+        uniqueOk: "一意解",
+        uniqueMulti: "複数解",
+        uniqueNone: "解なし",
+        uniqueUnknown: "未確認",
+        logicStatus: "論理解き",
+        logicOk: "仮置き不要",
+        logicWeak: "要仮置き",
+        help3: "赤い照明は、同じ行または列で別の照明を照らしている違反です。",
+        unlit: "未照明",
+        conflicts: "照明衝突",
+        clueBad: "数字超過",
+        solved: "クリア",
+        solvedText: "完成です。",
+        notYet: "未完成",
+        checked: "現在の盤面をチェックしました。",
+        generating: "問題を作成中です。条件を満たすまで続けます…",
+        generated: "新しい問題を作成しました。",
+        resetDone: "盤面をリセットしました。",
+        answerOn: "答えを表示しています。青い点が正解の照明位置です。",
+        answerOff: "答え表示を解除しました。",
+        seedApplied: "指定シードで問題を作成しました。",
+        tipLangBtn: "表示言語を日本語 / English で切り替えます。",
+        tipSizeSelect: "盤面サイズを選びます。14 x 24 は重くなりやすいため、数字削除は上限付きに固定されます。",
+        tipLookaheadSelect: "仮置きを使わずに論理手筋で解ける問題だけにするか、一意解であれば仮置きが必要な問題も許容するかを選びます。",
+        tipClueModeSelect: "数字ヒントをどこまで削るかを選びます。限界削除は冗長な数字を減らしますが、大盤面では生成に時間がかかります。",
+        tipNewPuzzle: "現在の条件で新しいランダム問題を作成します。条件を満たすまで生成を続けます。",
+        tipReset: "現在の問題を最初の状態に戻します。問題そのものは変わりません。",
+        tipAnswer: "正解の照明位置を青い点で表示します。もう一度押すと隠します。",
+        tipSeedInput: "問題生成に使ったシードです。同じバージョン・同じ条件なら同じ生成を再現しやすくなります。",
+        tipSeedBtn: "入力したシードで問題を作り直します。",
+        tipDetailsBtn: "生成・一意解判定・論理ソルバー・解き味評価・難易度評価などの詳細な内部データを表示します。",
+        tipForcedCapped: "14 x 24 では生成時間と数字不足を抑えるため、数字削除は上限付きに固定されます。",
+        debugTitle: "評価デバッグ",
+        debugMode: "限界削り＋ベスト選択",
+        debugNote: "このデバッグ版は、数字を一意解が保てる限界まで削った候補を複数作り、観察用スコアの高いものを表示します。各評価値は調整用の観察材料です。",
+        generationFailed: "生成に失敗したため、固定のサンプル問題を表示しました。"
+      },
+      en: {
+        title: "Light Up Random",
+        subtitle: "Solve randomly generated Light Up puzzles. Place bulbs to light every white cell.",
+        size: "Board size",
+        difficulty: "Generation",
+        lookaheadOption: "Guessing",
+        noLookahead: "No guessing",
+        allowLookahead: "Allow",
+        clueReductionOption: "Clue removal",
+        clueUniqueLimit: "To limit",
+        clueCapped: "Capped",
+        easy: "Easy",
+        normal: "Normal",
+        hard: "Hard",
+        detailSizeExperimental: "Experimental",
+        statusDifficulty: "Difficulty",
+        qualityScore: "Quality",
+        detailsButton: "Detailed puzzle data",
+        detailsTitle: "Detailed puzzle data",
+        close: "Close",
+        newPuzzle: "New Puzzle",
+        reset: "Reset",
+        check: "Check",
+        showAnswer: "Show Answer",
+        hideAnswer: "Hide Answer",
+        seed: "Seed",
+        useSeed: "Apply",
+        help1: "Left-click a white cell to place/remove a bulb. Right-click to toggle an X mark. X marks do not affect solution checking.",
+        help2: "The random generator accepts only uniquely solvable puzzles. Some settings may take longer to generate.",
+        uniqueStatus: "Uniqueness",
+        uniqueOk: "Unique",
+        uniqueMulti: "Multiple",
+        uniqueNone: "No solution",
+        uniqueUnknown: "Unchecked",
+        logicStatus: "Logical solve",
+        logicOk: "No guessing",
+        logicWeak: "Needs guessing",
+        help3: "A red bulb is conflicting with another bulb in the same unobstructed row or column.",
+        unlit: "Unlit cells",
+        conflicts: "Bulb conflicts",
+        clueBad: "Clue over",
+        solved: "Solved",
+        solvedText: "Solved.",
+        notYet: "Not solved",
+        checked: "Checked the current board.",
+        generating: "Generating a puzzle. This will continue until a matching puzzle is found…",
+        generated: "Generated a new puzzle.",
+        resetDone: "Reset the board.",
+        answerOn: "Showing the answer. Blue dots mark solution bulb cells.",
+        answerOff: "Answer overlay hidden.",
+        seedApplied: "Generated a puzzle from the seed.",
+        tipLangBtn: "Switch the display language between Japanese and English.",
+        tipSizeSelect: "Choose the board size. For 14 x 24, clue removal is forced to Capped because generation can be expensive.",
+        tipLookaheadSelect: "Choose whether puzzles must be solvable by logical rules without guessing, or whether uniquely solvable guessing puzzles are also allowed.",
+        tipClueModeSelect: "Choose how aggressively numbered clues are removed. To limit removes redundant clues but can be slower on large boards.",
+        tipNewPuzzle: "Generate a new random puzzle with the current conditions. Generation continues until a matching puzzle is found.",
+        tipReset: "Reset the current puzzle to the starting state without changing the puzzle.",
+        tipAnswer: "Show the solution bulb positions as blue dots. Press again to hide them.",
+        tipSeedInput: "The seed used for generation. With the same version and settings, it helps reproduce the same generation.",
+        tipSeedBtn: "Generate again from the seed entered here.",
+        tipDetailsBtn: "Show detailed internal data: generation, uniqueness, logical solver progress, quality metrics, and difficulty metrics.",
+        tipForcedCapped: "For 14 x 24, clue removal is fixed to Capped to reduce generation time and avoid over-sparse clue layouts.",
+        debugTitle: "Evaluation debug",
+        debugMode: "Unique-limit best selection",
+        debugNote: "This debug build removes clues to the unique-solution limit, generates multiple candidates, and displays a higher-scoring candidate. The metrics are for tuning and observation.",
+        generationFailed: "Generation failed, so a fixed sample puzzle was loaded."
+      }
+    };
+
+    const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+
+    function xmur3(str) {
+      let h = 1779033703 ^ str.length;
+      for (let i = 0; i < str.length; i++) {
+        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+        h = (h << 13) | (h >>> 19);
+      }
+      return function() {
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        return (h ^= h >>> 16) >>> 0;
+      };
+    }
+
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function makeRng(seed) {
+      return mulberry32(xmur3(seed)());
+    }
+
+    function randInt(rng, n) {
+      return Math.floor(rng() * n);
+    }
+
+    function shuffle(rng, arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = randInt(rng, i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function makeMatrix(rows, cols, value) {
+      return Array.from({ length: rows }, () => Array.from({ length: cols }, () => typeof value === "function" ? value() : value));
+    }
+
+    function inBounds(puzzle, r, c) {
+      return r >= 0 && r < puzzle.rows && c >= 0 && c < puzzle.cols;
+    }
+
+    function isWhite(puzzle, r, c) {
+      return inBounds(puzzle, r, c) && puzzle.cells[r][c].kind === "white";
+    }
+
+    function cellKey(r, c) { return `${r},${c}`; }
+
+    function parseKey(k) { return k.split(",").map(Number); }
+
+    function createEmptyState(puzzle) {
+      return {
+        bulbs: makeMatrix(puzzle.rows, puzzle.cols, false),
+        marks: makeMatrix(puzzle.rows, puzzle.cols, false),
+      };
+    }
+
+    function cloneBulbs(bulbs) {
+      return bulbs.map(row => row.slice());
+    }
+
+    function computeAnalysis(puzzle, state, checkMode) {
+      const lit = makeMatrix(puzzle.rows, puzzle.cols, false);
+      const conflict = makeMatrix(puzzle.rows, puzzle.cols, false);
+      const clueStatus = makeMatrix(puzzle.rows, puzzle.cols, null);
+      const conflictPairs = new Set();
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          if (!state.bulbs[r][c]) continue;
+          lit[r][c] = true;
+          for (const [dr, dc] of DIRS) {
+            let rr = r + dr, cc = c + dc;
+            while (isWhite(puzzle, rr, cc)) {
+              lit[rr][cc] = true;
+              if (state.bulbs[rr][cc]) {
+                conflict[r][c] = true;
+                conflict[rr][cc] = true;
+                const a = cellKey(r,c), b = cellKey(rr,cc);
+                conflictPairs.add(a < b ? `${a}|${b}` : `${b}|${a}`);
+              }
+              rr += dr; cc += dc;
+            }
+          }
+        }
+      }
+
+      let unlitWhiteCount = 0;
+      let clueViolationCount = 0;
+      let satisfiedClues = 0;
+      let totalClues = 0;
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          const cell = puzzle.cells[r][c];
+          if (cell.kind === "white" && !lit[r][c]) unlitWhiteCount++;
+          if (cell.kind === "black" && cell.clue !== null) {
+            totalClues++;
+            let count = 0;
+            for (const [dr, dc] of DIRS) {
+              const rr = r + dr, cc = c + dc;
+              if (inBounds(puzzle, rr, cc) && state.bulbs[rr][cc]) count++;
+            }
+            const exact = count === cell.clue;
+            const bad = count > cell.clue || (checkMode && !exact);
+            if (bad) clueViolationCount++;
+            if (exact) satisfiedClues++;
+            clueStatus[r][c] = { count, exact, bad };
+          }
+        }
+      }
+
+      const conflictBulbCount = conflict.flat().filter(Boolean).length;
+      const solved = unlitWhiteCount === 0 && conflictBulbCount === 0 && satisfiedClues === totalClues;
+      return { lit, conflict, clueStatus, unlitWhiteCount, conflictBulbCount, conflictPairCount: conflictPairs.size, clueViolationCount, satisfiedClues, totalClues, solved };
+    }
+
+    function canSeeBulb(puzzle, bulbs, r, c) {
+      for (const [dr, dc] of DIRS) {
+        let rr = r + dr, cc = c + dc;
+        while (isWhite(puzzle, rr, cc)) {
+          if (bulbs[rr][cc]) return true;
+          rr += dr; cc += dc;
+        }
+      }
+      return false;
+    }
+
+    function markLitFromBulb(puzzle, lit, r, c) {
+      lit[r][c] = true;
+      for (const [dr, dc] of DIRS) {
+        let rr = r + dr, cc = c + dc;
+        while (isWhite(puzzle, rr, cc)) {
+          lit[rr][cc] = true;
+          rr += dr; cc += dc;
+        }
+      }
+    }
+
+    function computeLitFromBulbs(puzzle, bulbs) {
+      const lit = makeMatrix(puzzle.rows, puzzle.cols, false);
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          if (bulbs[r][c]) markLitFromBulb(puzzle, lit, r, c);
+        }
+      }
+      return lit;
+    }
+
+    function computeSegments(puzzle) {
+      const hSeg = makeMatrix(puzzle.rows, puzzle.cols, -1);
+      const vSeg = makeMatrix(puzzle.rows, puzzle.cols, -1);
+      let hCount = 0, vCount = 0;
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        let c = 0;
+        while (c < puzzle.cols) {
+          if (!isWhite(puzzle, r, c)) { c++; continue; }
+          const id = hCount++;
+          while (c < puzzle.cols && isWhite(puzzle, r, c)) {
+            hSeg[r][c] = id;
+            c++;
+          }
+        }
+      }
+
+      for (let c = 0; c < puzzle.cols; c++) {
+        let r = 0;
+        while (r < puzzle.rows) {
+          if (!isWhite(puzzle, r, c)) { r++; continue; }
+          const id = vCount++;
+          while (r < puzzle.rows && isWhite(puzzle, r, c)) {
+            vSeg[r][c] = id;
+            r++;
+          }
+        }
+      }
+
+      return { hSeg, vSeg, hCount, vCount };
+    }
+
+    function createBlackLayout(rows, cols, rng, blackRate) {
+      const cells = makeMatrix(rows, cols, () => ({ kind: "white" }));
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const edgeBoost = (r === 0 || c === 0 || r === rows - 1 || c === cols - 1) ? 0.015 : 0;
+          if (rng() < blackRate + edgeBoost) cells[r][c] = { kind: "black", clue: null };
+        }
+      }
+
+      // Avoid extremely open boards by adding a few black cells if needed.
+      const blackCount = cells.flat().filter(cell => cell.kind === "black").length;
+      const minBlack = Math.max(5, Math.floor(rows * cols * (blackRate * 0.65)));
+      for (let i = blackCount; i < minBlack; i++) {
+        const r = randInt(rng, rows), c = randInt(rng, cols);
+        cells[r][c] = { kind: "black", clue: null };
+      }
+
+      // Avoid all-black rows/cols and make sure there are enough white cells.
+      const whiteCount = cells.flat().filter(cell => cell.kind === "white").length;
+      if (whiteCount < Math.floor(rows * cols * 0.52)) return null;
+      return { rows, cols, cells, solution: null, seed: "" };
+    }
+
+    function generateSolutionForLayout(puzzle, rng) {
+      const segments = computeSegments(puzzle);
+      const bulbs = makeMatrix(puzzle.rows, puzzle.cols, false);
+      const usedH = Array(segments.hCount).fill(false);
+      const usedV = Array(segments.vCount).fill(false);
+      let lit = computeLitFromBulbs(puzzle, bulbs);
+
+      function placeBulb(r, c) {
+        const h = segments.hSeg[r][c], v = segments.vSeg[r][c];
+        if (h < 0 || v < 0 || usedH[h] || usedV[v]) return false;
+        bulbs[r][c] = true;
+        usedH[h] = true;
+        usedV[v] = true;
+        markLitFromBulb(puzzle, lit, r, c);
+        return true;
+      }
+
+      // Seed with a few random non-conflicting bulbs, then cover remaining cells greedily.
+      const whites = [];
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) if (isWhite(puzzle, r, c)) whites.push([r, c]);
+      }
+      shuffle(rng, whites);
+      const targetInitial = Math.max(2, Math.floor(whites.length * 0.10));
+      let placed = 0;
+      for (const [r, c] of whites) {
+        if (placed >= targetInitial) break;
+        if (rng() < 0.45 && placeBulb(r, c)) placed++;
+      }
+
+      for (let safety = 0; safety < puzzle.rows * puzzle.cols * 3; safety++) {
+        const unlit = [];
+        for (let r = 0; r < puzzle.rows; r++) {
+          for (let c = 0; c < puzzle.cols; c++) if (isWhite(puzzle, r, c) && !lit[r][c]) unlit.push([r,c]);
+        }
+        if (unlit.length === 0) return bulbs;
+        shuffle(rng, unlit);
+        const [ur, uc] = unlit[0];
+        const candidates = [];
+
+        // Any cell in the same horizontal or vertical segment can light this cell.
+        for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          let rr = ur, cc = uc;
+          while (isWhite(puzzle, rr, cc)) {
+            const h = segments.hSeg[rr][cc], v = segments.vSeg[rr][cc];
+            if (!usedH[h] && !usedV[v]) candidates.push([rr,cc]);
+            rr += dr; cc += dc;
+          }
+        }
+        // Include itself only once if possible.
+        const h = segments.hSeg[ur][uc], v = segments.vSeg[ur][uc];
+        if (!usedH[h] && !usedV[v]) candidates.push([ur, uc]);
+
+        const unique = Array.from(new Map(candidates.map(x => [cellKey(x[0], x[1]), x])).values());
+        if (unique.length === 0) return null;
+
+        // Prefer candidates that light many currently unlit cells.
+        let best = null;
+        let bestScore = -1;
+        shuffle(rng, unique);
+        for (const [r, c] of unique) {
+          let score = 0;
+          if (!lit[r][c]) score++;
+          for (const [dr, dc] of DIRS) {
+            let rr = r + dr, cc = c + dc;
+            while (isWhite(puzzle, rr, cc)) {
+              if (!lit[rr][cc]) score++;
+              rr += dr; cc += dc;
+            }
+          }
+          score += rng() * 0.35;
+          if (score > bestScore) { bestScore = score; best = [r,c]; }
+        }
+        if (!best || !placeBulb(best[0], best[1])) return null;
+      }
+      return null;
+    }
+
+    function buildPuzzleWithAllClues(puzzle, solution) {
+      const cells = puzzle.cells.map(row => row.map(cell => cell.kind === "white" ? { kind: "white" } : { kind: "black", clue: null }));
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          if (cells[r][c].kind !== "black") continue;
+          let clue = 0;
+          for (const [dr, dc] of DIRS) {
+            const rr = r + dr, cc = c + dc;
+            if (rr >= 0 && rr < puzzle.rows && cc >= 0 && cc < puzzle.cols && solution[rr][cc]) clue++;
+          }
+          cells[r][c] = { kind: "black", clue };
+        }
+      }
+      return { rows: puzzle.rows, cols: puzzle.cols, cells, solution, seed: puzzle.seed, uniqueness: "unknown", solverNodes: 0 };
+    }
+
+    function clonePuzzleForClueEditing(puzzle) {
+      const cells = puzzle.cells.map(row => row.map(cell => cell.kind === "white" ? { kind: "white" } : { kind: "black", clue: cell.clue }));
+      return { rows: puzzle.rows, cols: puzzle.cols, cells, solution: puzzle.solution, seed: puzzle.seed, uniqueness: "unique", solverNodes: 0 };
+    }
+
+    function collectCluePositions(puzzle) {
+      const positions = [];
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          if (puzzle.cells[r][c].kind === "black" && puzzle.cells[r][c].clue !== null) positions.push([r, c]);
+        }
+      }
+      return positions;
+    }
+
+    function countNumberedClues(puzzle) {
+      return collectCluePositions(puzzle).length;
+    }
+
+    function removeCluesToUniqueLimit(puzzle, rng) {
+      const result = clonePuzzleForClueEditing(puzzle);
+      const initialClues = countNumberedClues(result);
+      let removed = 0;
+      let tested = 0;
+      let passCount = 0;
+      let maxNodes = 0;
+      let changed = true;
+
+      // Local minimum under single-clue deletion: when this stops, every remaining
+      // numbered cell has been tested once in the current state and cannot be removed
+      // without losing unique solvability. This intentionally does NOT require the
+      // puzzle to remain solvable by the human-style logic solver.
+      while (changed) {
+        changed = false;
+        passCount++;
+        const positions = collectCluePositions(result);
+        shuffle(rng, positions);
+        for (const [r, c] of positions) {
+          const old = result.cells[r][c].clue;
+          if (old === null) continue;
+          result.cells[r][c].clue = null;
+          tested++;
+          const check = solvePuzzle(result, 2);
+          maxNodes = Math.max(maxNodes, check.nodeCount || 0);
+          if (!check.aborted && check.solutionCount === 1) {
+            removed++;
+            changed = true;
+          } else {
+            result.cells[r][c].clue = old;
+          }
+        }
+      }
+
+      result.solverNodes = maxNodes;
+      result.minimizeStats = {
+        mode: "uniqueLimit",
+        initialClues,
+        finalClues: countNumberedClues(result),
+        removedClues: removed,
+        deletionTests: tested,
+        passCount,
+      };
+      return result;
+    }
+
+    function removeCluesWithUniqueCap(puzzle, rng, maxTests) {
+      const result = clonePuzzleForClueEditing(puzzle);
+      const cluePositions = collectCluePositions(result);
+      shuffle(rng, cluePositions);
+      const initialClues = cluePositions.length;
+      let removed = 0;
+      let tested = 0;
+      let maxNodes = 0;
+      const limit = Math.max(20, Math.min(maxTests || cluePositions.length, cluePositions.length));
+      for (const [r, c] of cluePositions.slice(0, limit)) {
+        const old = result.cells[r][c].clue;
+        if (old === null) continue;
+        result.cells[r][c].clue = null;
+        tested++;
+        const check = solvePuzzle(result, 2);
+        maxNodes = Math.max(maxNodes, check.nodeCount || 0);
+        if (!check.aborted && check.solutionCount === 1) {
+          removed++;
+        } else {
+          result.cells[r][c].clue = old;
+        }
+      }
+      result.solverNodes = maxNodes;
+      result.minimizeStats = {
+        mode: "uniqueCapped",
+        initialClues,
+        finalClues: countNumberedClues(result),
+        removedClues: removed,
+        deletionTests: tested,
+        passCount: 1,
+      };
+      return result;
+    }
+
+    function legacyRemoveCluesPreservingLogic(puzzle, rng, clueRemovalRate) {
+      const result = clonePuzzleForClueEditing(puzzle);
+      const cluePositions = collectCluePositions(result);
+      shuffle(rng, cluePositions);
+      const targetRemove = Math.floor(cluePositions.length * clueRemovalRate);
+      let removed = 0;
+      for (const [r, c] of cluePositions) {
+        if (removed >= targetRemove) break;
+        const old = result.cells[r][c].clue;
+        result.cells[r][c].clue = null;
+        const check = solvePuzzle(result, 2);
+        const logic = !check.aborted && check.solutionCount === 1 ? logicSolvePuzzle(result, false) : { solved: false };
+        if (!check.aborted && check.solutionCount === 1 && logic.solved) {
+          removed++;
+          result.solverNodes = Math.max(result.solverNodes || 0, check.nodeCount || 0);
+        } else {
+          result.cells[r][c].clue = old;
+        }
+      }
+      result.minimizeStats = {
+        mode: "logicLimitedRate",
+        initialClues: cluePositions.length,
+        finalClues: countNumberedClues(result),
+        removedClues: removed,
+        deletionTests: cluePositions.length,
+        passCount: 1,
+      };
+      return result;
+    }
+
+
+    function buildSolverModel(puzzle) {
+      const idxOf = makeMatrix(puzzle.rows, puzzle.cols, -1);
+      const positions = [];
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          if (isWhite(puzzle, r, c)) {
+            idxOf[r][c] = positions.length;
+            positions.push([r, c]);
+          }
+        }
+      }
+      const n = positions.length;
+      const lightCandidates = Array.from({ length: n }, () => []);
+      const conflictList = Array.from({ length: n }, () => []);
+      const conflictSet = Array.from({ length: n }, () => new Set());
+      const clues = [];
+
+      for (let i = 0; i < n; i++) {
+        const [r, c] = positions[i];
+        const lightSet = new Set([i]);
+        for (const [dr, dc] of DIRS) {
+          let rr = r + dr, cc = c + dc;
+          while (isWhite(puzzle, rr, cc)) {
+            const j = idxOf[rr][cc];
+            lightSet.add(j);
+            conflictSet[i].add(j);
+            rr += dr; cc += dc;
+          }
+        }
+        lightCandidates[i] = Array.from(lightSet).sort((a, b) => a - b);
+      }
+      for (let i = 0; i < n; i++) {
+        for (const j of Array.from(conflictSet[i])) conflictSet[j].add(i);
+      }
+      for (let i = 0; i < n; i++) conflictList[i] = Array.from(conflictSet[i]).sort((a, b) => a - b);
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          const cell = puzzle.cells[r][c];
+          if (cell.kind === "black" && cell.clue !== null) {
+            const adjs = [];
+            for (const [dr, dc] of DIRS) {
+              const rr = r + dr, cc = c + dc;
+              if (isWhite(puzzle, rr, cc)) adjs.push(idxOf[rr][cc]);
+            }
+            clues.push({ clue: cell.clue, adjs });
+          }
+        }
+      }
+
+      return { idxOf, positions, n, lightCandidates, conflictList, clues };
+    }
+
+    function logicSolvePuzzle(puzzle, collectSteps = true) {
+      const model = buildSolverModel(puzzle);
+      const { positions, n, lightCandidates, conflictList, clues } = model;
+      const assign = new Int8Array(n);
+      assign.fill(-1);
+      let failed = false;
+      let changed = false;
+      let round = 0;
+      let stepCount = 0;
+      const steps = collectSteps ? [] : null;
+      const techniqueCounts = { clueSatisfied: 0, clueAllNeeded: 0, onlyCover: 0, lineConflict: 0 };
+      const solutionTotal = puzzle.solution ? puzzle.solution.flat().filter(Boolean).length : 0;
+
+      function addStep(idx, val, technique, difficulty, meta = {}) {
+        stepCount++;
+        techniqueCounts[technique] = (techniqueCounts[technique] || 0) + 1;
+        if (steps) {
+          const [r, c] = positions[idx];
+          steps.push({ round, idx, r, c, value: val, technique, difficulty, ...meta });
+        }
+      }
+
+      function setVal(idx, val, technique = "derived", difficulty = 1, meta = {}) {
+        if (failed) return false;
+        if (assign[idx] === val) return true;
+        if (assign[idx] !== -1) { failed = true; return false; }
+        assign[idx] = val;
+        changed = true;
+        addStep(idx, val, technique, difficulty, meta);
+        if (val === 1) {
+          for (const j of conflictList[idx]) {
+            if (!setVal(j, 0, "lineConflict", 1)) return false;
+          }
+        }
+        return true;
+      }
+
+      function adjacentClueCount(idx) {
+        const [r, c] = positions[idx];
+        let count = 0;
+        for (const [dr, dc] of DIRS) {
+          const rr = r + dr, cc = c + dc;
+          if (!inBounds(puzzle, rr, cc)) continue;
+          const cell = puzzle.cells[rr][cc];
+          if (cell.kind === "black" && cell.clue !== null) count++;
+        }
+        return count;
+      }
+
+      function buildOnlyCoverMeta(targetIdx, sourceIdx, span, difficulty) {
+        const [tr, tc] = positions[targetIdx];
+        const [sr, sc] = positions[sourceIdx];
+        const distance = Math.abs(tr - sr) + Math.abs(tc - sc);
+        const targetAdjacentClueCount = adjacentClueCount(targetIdx);
+        const sourceAdjacentClueCount = adjacentClueCount(sourceIdx);
+        const longSpan = span >= 7;
+        const broadSpan = span >= 5;
+        const remote = distance >= 3;
+        const nonClueTarget = targetAdjacentClueCount === 0;
+        const heavy = longSpan || remote || (broadSpan && nonClueTarget) || difficulty >= 4;
+        return {
+          onlyCoverTargetIdx: targetIdx,
+          onlyCoverSourceIdx: sourceIdx,
+          onlyCoverTargetRow: tr,
+          onlyCoverTargetCol: tc,
+          onlyCoverSpan: span,
+          onlyCoverDistance: distance,
+          onlyCoverTargetAdjacentClueCount: targetAdjacentClueCount,
+          onlyCoverSourceAdjacentClueCount: sourceAdjacentClueCount,
+          onlyCoverTargetAdjacentClue: targetAdjacentClueCount > 0,
+          onlyCoverSourceAdjacentClue: sourceAdjacentClueCount > 0,
+          onlyCoverBroadSpan: broadSpan,
+          onlyCoverLongSpan: longSpan,
+          onlyCoverRemote: remote,
+          onlyCoverHeavy: heavy,
+        };
+      }
+
+      while (!failed) {
+        changed = false;
+        round++;
+
+        for (const item of clues) {
+          let on = 0;
+          const unknowns = [];
+          for (const idx of item.adjs) {
+            if (assign[idx] === 1) on++;
+            else if (assign[idx] === -1) unknowns.push(idx);
+          }
+          if (on > item.clue || on + unknowns.length < item.clue) { failed = true; break; }
+          if (on === item.clue) {
+            for (const idx of unknowns) if (!setVal(idx, 0, "clueSatisfied", 1)) break;
+          } else if (on + unknowns.length === item.clue) {
+            for (const idx of unknowns) if (!setVal(idx, 1, "clueAllNeeded", 1)) break;
+          }
+          if (failed) break;
+        }
+        if (failed) break;
+
+        for (let i = 0; i < n; i++) {
+          let lit = false;
+          const unknowns = [];
+          for (const j of lightCandidates[i]) {
+            if (assign[j] === 1) { lit = true; break; }
+            if (assign[j] === -1) unknowns.push(j);
+          }
+          if (!lit) {
+            if (unknowns.length === 0) { failed = true; break; }
+            if (unknowns.length === 1) {
+              const span = lightCandidates[i].length;
+              const diff = span >= 7 ? 4 : span >= 5 ? 3 : 2;
+              const meta = buildOnlyCoverMeta(i, unknowns[0], span, diff);
+              if (!setVal(unknowns[0], 1, "onlyCover", diff, meta)) break;
+            }
+          }
+        }
+        if (failed || !changed) {
+          if (!changed) round--;
+          break;
+        }
+      }
+
+      let allLit = true;
+      for (let i = 0; i < n; i++) {
+        let lit = false;
+        for (const j of lightCandidates[i]) {
+          if (assign[j] === 1) { lit = true; break; }
+        }
+        if (!lit) { allLit = false; break; }
+      }
+
+      let cluesExact = true;
+      for (const item of clues) {
+        let on = 0;
+        for (const idx of item.adjs) if (assign[idx] === 1) on++;
+        if (on !== item.clue) { cluesExact = false; break; }
+      }
+
+      const placed = Array.from(assign).filter(v => v === 1).length;
+      const forbidden = Array.from(assign).filter(v => v === 0).length;
+      const undecided = Array.from(assign).filter(v => v === -1).length;
+      const progress = solutionTotal > 0 ? placed / solutionTotal : (n > 0 ? (placed + forbidden) / n : 1);
+      const bulbs = makeMatrix(puzzle.rows, puzzle.cols, false);
+      for (let i = 0; i < n; i++) {
+        if (assign[i] === 1) {
+          const [r, c] = positions[i];
+          bulbs[r][c] = true;
+        }
+      }
+
+      const roundSummaries = [];
+      const primarySteps = steps ? steps.filter(st => st.technique !== "lineConflict") : [];
+      const primaryDiffs = primarySteps.map(st => st.difficulty);
+      if (steps) {
+        for (let r = 1; r <= round; r++) {
+          const total = steps.filter(st => st.round === r).length;
+          const primary = steps.filter(st => st.round === r && st.technique !== "lineConflict").length;
+          const bulbsPlaced = steps.filter(st => st.round === r && st.value === 1).length;
+          if (total > 0) roundSummaries.push({ round: r, total, primary, bulbsPlaced });
+        }
+      }
+      const profile = roundSummaries.map(x => x.primary);
+      const primaryStepCount = primarySteps.length;
+      const avgPrimaryPerRound = roundSummaries.length ? primaryStepCount / roundSummaries.length : 0;
+      let singleMoveStreakMax = 0;
+      let cur = 0;
+      for (const v of profile) {
+        if (v === 1) { cur++; singleMoveStreakMax = Math.max(singleMoveStreakMax, cur); }
+        else cur = 0;
+      }
+      const openingDeterminations = roundSummaries[0]?.total || 0;
+      const openingPrimary = roundSummaries[0]?.primary || 0;
+      const maxStepDifficulty = primaryDiffs.length ? Math.max(...primaryDiffs) : 0;
+      const averageStepDifficulty = primaryDiffs.length ? primaryDiffs.reduce((a, b) => a + b, 0) / primaryDiffs.length : 0;
+      const techniqueTypesUsed = Object.entries(techniqueCounts).filter(([k, v]) => k !== "lineConflict" && v > 0).length;
+      const onlyCoverSteps = primarySteps.filter(st => st.technique === "onlyCover");
+      const onlyCoverRatio = primarySteps.length ? onlyCoverSteps.length / primarySteps.length : 0;
+      const onlyCoverHeavyCount = onlyCoverSteps.filter(st => st.onlyCoverHeavy).length;
+      const onlyCoverBroadSpanCount = onlyCoverSteps.filter(st => st.onlyCoverBroadSpan).length;
+      const onlyCoverLongSpanCount = onlyCoverSteps.filter(st => st.onlyCoverLongSpan).length;
+      const onlyCoverRemoteCount = onlyCoverSteps.filter(st => st.onlyCoverRemote).length;
+      const onlyCoverNonClueAdjacentCount = onlyCoverSteps.filter(st => !st.onlyCoverTargetAdjacentClue).length;
+      const onlyCoverMaxSpan = onlyCoverSteps.length ? Math.max(...onlyCoverSteps.map(st => st.onlyCoverSpan || 0)) : 0;
+      const onlyCoverMaxDistance = onlyCoverSteps.length ? Math.max(...onlyCoverSteps.map(st => st.onlyCoverDistance || 0)) : 0;
+      const openingOnlyCoverCount = onlyCoverSteps.filter(st => st.round === 1).length;
+      let onlyCoverStreakMax = 0;
+      let onlyCoverStreak = 0;
+      for (const st of primarySteps) {
+        if (st.technique === "onlyCover") {
+          onlyCoverStreak++;
+          onlyCoverStreakMax = Math.max(onlyCoverStreakMax, onlyCoverStreak);
+        } else {
+          onlyCoverStreak = 0;
+        }
+      }
+
+      return {
+        solved: !failed && allLit && cluesExact,
+        contradiction: failed,
+        placed,
+        forbidden,
+        undecided,
+        totalBulbs: solutionTotal,
+        progress,
+        stepCount,
+        bulbs,
+        steps: steps || [],
+        roundSummaries,
+        progressProfile: profile,
+        primaryStepCount,
+        avgPrimaryPerRound,
+        openingDeterminations,
+        openingPrimary,
+        singleMoveStreakMax,
+        maxStepDifficulty,
+        averageStepDifficulty,
+        techniqueCounts,
+        techniqueTypesUsed,
+        onlyCoverRatio,
+        onlyCoverHeavyCount,
+        onlyCoverBroadSpanCount,
+        onlyCoverLongSpanCount,
+        onlyCoverRemoteCount,
+        onlyCoverNonClueAdjacentCount,
+        onlyCoverMaxSpan,
+        onlyCoverMaxDistance,
+        openingOnlyCoverCount,
+        onlyCoverStreakMax,
+      };
+    }
+
+    function computeStructuralStats(puzzle) {
+      let whiteCount = 0, blackCount = 0, clueCount = 0, clueSum = 0;
+      const clueDist = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, none: 0 };
+      const blackQuadrants = [0, 0, 0, 0];
+      const clueQuadrants = [0, 0, 0, 0];
+      function quadrant(r, c) {
+        const bottom = r >= puzzle.rows / 2 ? 1 : 0;
+        const right = c >= puzzle.cols / 2 ? 1 : 0;
+        return bottom * 2 + right;
+      }
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          const cell = puzzle.cells[r][c];
+          if (cell.kind === "white") whiteCount++;
+          else {
+            blackCount++;
+            blackQuadrants[quadrant(r, c)]++;
+            if (cell.clue === null) clueDist.none++;
+            else {
+              clueCount++;
+              clueSum += cell.clue;
+              clueDist[cell.clue]++;
+              clueQuadrants[quadrant(r, c)]++;
+            }
+          }
+        }
+      }
+
+      const segLengths = [];
+      for (let r = 0; r < puzzle.rows; r++) {
+        let c = 0;
+        while (c < puzzle.cols) {
+          if (!isWhite(puzzle, r, c)) { c++; continue; }
+          let len = 0;
+          while (c < puzzle.cols && isWhite(puzzle, r, c)) { len++; c++; }
+          segLengths.push(len);
+        }
+      }
+      for (let c = 0; c < puzzle.cols; c++) {
+        let r = 0;
+        while (r < puzzle.rows) {
+          if (!isWhite(puzzle, r, c)) { r++; continue; }
+          let len = 0;
+          while (r < puzzle.rows && isWhite(puzzle, r, c)) { len++; r++; }
+          segLengths.push(len);
+        }
+      }
+      const longThreshold = puzzle.rows >= 11 ? 7 : puzzle.rows >= 9 ? 6 : 5;
+      const maxSegmentLength = segLengths.length ? Math.max(...segLengths) : 0;
+      const avgSegmentLength = segLengths.length ? segLengths.reduce((a, b) => a + b, 0) / segLengths.length : 0;
+      const longSegmentCount = segLengths.filter(v => v >= longThreshold).length;
+      function imbalance(arr) {
+        const total = arr.reduce((a, b) => a + b, 0);
+        if (!total) return 0;
+        const avg = total / arr.length;
+        return avg ? (Math.max(...arr) - Math.min(...arr)) / avg : 0;
+      }
+      return {
+        whiteCount,
+        blackCount,
+        clueCount,
+        clueDensity: blackCount ? clueCount / blackCount : 0,
+        clueAverage: clueCount ? clueSum / clueCount : 0,
+        clueDist,
+        zeroFourCount: clueDist[0] + clueDist[4],
+        maxSegmentLength,
+        avgSegmentLength,
+        longSegmentCount,
+        longThreshold,
+        blackImbalance: imbalance(blackQuadrants),
+        clueImbalance: imbalance(clueQuadrants),
+      };
+    }
+
+    function evaluatePuzzleQuality(puzzle, solveCheck = null) {
+      const logic = logicSolvePuzzle(puzzle, true);
+      const stats = computeStructuralStats(puzzle);
+      let score = 100;
+      const notes = [];
+      function penalty(cond, amount, note) {
+        if (cond) { score -= amount; notes.push(note); }
+      }
+      penalty(!logic.solved, 50, "論理ソルバーで完走できない");
+      penalty(logic.openingPrimary <= 0, 22, "入口がほぼない");
+      penalty(logic.openingPrimary === 1, 10, "入口が少ない");
+      penalty(logic.openingOnlyCoverCount > 0 && logic.openingOnlyCoverCount >= Math.max(1, logic.openingPrimary - 1), 8, "入口が唯一照明候補に偏る");
+      penalty(logic.singleMoveStreakMax >= 4, 16, "1手進行が長い");
+      penalty(logic.onlyCoverStreakMax >= 3, 10, "唯一照明候補が連続する");
+      penalty(logic.onlyCoverRatio >= 0.50, 8, "only-cover依存がやや高い");
+      penalty(logic.onlyCoverRatio >= 0.65, 10, "only-cover依存が高い");
+      const heavyOnlyCoverPenalty = Math.min(20, (logic.onlyCoverHeavyCount || 0) * 5 + (logic.onlyCoverLongSpanCount || 0) * 3 + (logic.onlyCoverRemoteCount || 0) * 3);
+      penalty(heavyOnlyCoverPenalty > 0, heavyOnlyCoverPenalty, "見つけにくい唯一照明候補がある");
+      penalty(logic.onlyCoverNonClueAdjacentCount >= 2, 6, "数字から離れた唯一照明候補が多い");
+      penalty(logic.techniqueTypesUsed <= 1, 10, "手筋が単調");
+      penalty(logic.maxStepDifficulty >= 4, 8, "長距離の唯一照明候補がある");
+      penalty(stats.longSegmentCount >= 3, 10, "長い白マス通路が多い");
+      penalty(stats.clueDensity < 0.42, 8, "数字ヒントが少なめ");
+      penalty(stats.zeroFourCount >= Math.max(3, Math.floor(stats.clueCount * 0.35)), 6, "0/4の比率が高い");
+      penalty(stats.blackImbalance > 1.3, 6, "黒マスの偏りが大きい");
+      penalty(stats.clueImbalance > 1.5, 6, "数字ヒントの偏りが大きい");
+      score = Math.max(0, Math.min(100, Math.round(score)));
+      return { score, notes, logic, stats, solveCheck };
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function evaluatePuzzleDifficulty(puzzle, quality = null) {
+      const q = quality || puzzle.quality || evaluatePuzzleQuality(puzzle);
+      const logic = q.logic;
+      const stats = q.stats;
+      const notes = [];
+      let score = 12;
+
+      const primarySteps = logic.primaryStepCount || 0;
+      const rounds = logic.roundSummaries?.length || 0;
+      const avgPrimaryPerRound = logic.avgPrimaryPerRound || (rounds ? primarySteps / rounds : 0);
+      const onlyCoverRatio = logic.onlyCoverRatio || 0;
+
+      function add(amount, note) {
+        if (amount > 0) {
+          score += amount;
+          if (note) notes.push(note);
+        }
+      }
+      function sub(amount, note) {
+        if (amount > 0) {
+          score -= amount;
+          if (note) notes.push(note);
+        }
+      }
+
+      // “Difficulty” is deliberately different from quality. A puzzle can be hard and good,
+      // hard and bad, easy and good, etc. This score tries to estimate cognitive load.
+      add(Math.min(16, rounds * 0.9), "解くラウンド数が多い");
+      add(Math.min(14, primarySteps * 0.35), "主手筋の総数が多い");
+      add(Math.min(18, (logic.maxStepDifficulty || 0) * 4.2), "最大手筋難度が高い");
+      add(Math.min(12, (logic.averageStepDifficulty || 0) * 4.0), "平均手筋難度が高い");
+      add(Math.min(18, (logic.singleMoveStreakMax || 0) * 3.2), "1手進行が続く");
+      add(Math.min(18, onlyCoverRatio * 20), "唯一照明候補への依存が大きい");
+      add(Math.min(18, (logic.onlyCoverHeavyCount || 0) * 5 + (logic.onlyCoverLongSpanCount || 0) * 3 + (logic.onlyCoverRemoteCount || 0) * 2), "見つけにくいonly-coverがある");
+      add(Math.min(8, (logic.onlyCoverNonClueAdjacentCount || 0) * 2), "数字から離れたonly-coverがある");
+      add(Math.min(10, (stats.longSegmentCount || 0) * 2), "長い白マス通路がある");
+      add(Math.min(8, Math.max(0, (stats.maxSegmentLength || 0) - (stats.longThreshold || 5)) * 1.5), "最大白通路が長い");
+
+      if (!logic.solved) add(28, "論理ソルバーで完走できない");
+      if ((logic.openingPrimary || 0) <= 0) add(15, "入口が見えにくい");
+      else if (logic.openingPrimary === 1) add(9, "入口が少ない");
+      else if (logic.openingPrimary === 2) add(4, "入口がやや少ない");
+      else sub(Math.min(8, (logic.openingPrimary - 2) * 1.3), "入口が多く着手しやすい");
+
+      if (avgPrimaryPerRound > 0 && avgPrimaryPerRound < 1.35) add(10, "各局面の進行が細い");
+      else if (avgPrimaryPerRound > 0 && avgPrimaryPerRound < 1.8) add(5, "各局面の進行がやや細い");
+      else if (avgPrimaryPerRound >= 3) sub(5, "一度に進む場面が多い");
+
+      // Very clue-rich minimal boards tend to be more locally guided; sparse clue boards tend to
+      // require more coverage reasoning. This is weak because clue count is also a quality axis.
+      add(clamp((0.45 - (stats.clueDensity || 0)) * 18, 0, 8), "数字密度が低く候補探索寄り");
+
+      score = clamp(Math.round(score), 0, 100);
+      let band = "Lv.1";
+      let labelJa = "入門";
+      let labelEn = "Intro";
+      if (score >= 80) { band = "Lv.5"; labelJa = "高難度"; labelEn = "Expert"; }
+      else if (score >= 65) { band = "Lv.4"; labelJa = "難しい"; labelEn = "Hard"; }
+      else if (score >= 45) { band = "Lv.3"; labelJa = "普通"; labelEn = "Normal"; }
+      else if (score >= 25) { band = "Lv.2"; labelJa = "やさしい"; labelEn = "Easy"; }
+
+      return {
+        score,
+        band,
+        labelJa,
+        labelEn,
+        notes: notes.slice(0, 8),
+        rounds,
+        primarySteps,
+        avgPrimaryPerRound,
+        openingPrimary: logic.openingPrimary || 0,
+        singleMoveStreakMax: logic.singleMoveStreakMax || 0,
+        maxStepDifficulty: logic.maxStepDifficulty || 0,
+        averageStepDifficulty: logic.averageStepDifficulty || 0,
+        onlyCoverRatio,
+        onlyCoverHeavyCount: logic.onlyCoverHeavyCount || 0,
+        longSegmentCount: stats.longSegmentCount || 0,
+        maxSegmentLength: stats.maxSegmentLength || 0,
+      };
+    }
+
+    function attachLogicInfo(puzzle) {
+      const logic = logicSolvePuzzle(puzzle);
+      puzzle.logicSolved = logic.solved;
+      puzzle.logicProgress = logic.progress;
+      puzzle.logicPlaced = logic.placed;
+      puzzle.logicTotalBulbs = logic.totalBulbs;
+      puzzle.logicSteps = logic.stepCount;
+      return logic;
+    }
+
+    const DIFFICULTY = {
+      easy: {
+        blackRate: 0.34,
+        attempts: 120,
+        candidateTarget: 5,
+        minCandidateTries: 18,
+        minimizeMode: "uniqueLimit",
+      },
+      normal: {
+        blackRate: 0.30,
+        attempts: 160,
+        candidateTarget: 7,
+        minCandidateTries: 24,
+        minimizeMode: "uniqueLimit",
+      },
+      hard: {
+        blackRate: 0.27,
+        attempts: 220,
+        candidateTarget: 9,
+        minCandidateTries: 32,
+        minimizeMode: "uniqueLimit",
+      },
+    };
+
+    function candidateRankValue(puzzle) {
+      const q = puzzle.quality || evaluatePuzzleQuality(puzzle);
+      const stats = q.stats;
+      const logic = q.logic;
+      const min = puzzle.minimizeStats || {};
+
+      // The displayed quality score is intentionally not the only selector here.
+      // This debug branch tries to surface puzzles closer to handmade minimal-clue
+      // style: locally minimal under unique-solution deletion, then among those prefer
+      // better logical flow. Fewer final clues is a small tiebreaker, not an absolute goal.
+      let rank = q.score;
+      if (logic.solved) rank += 18;
+      rank += Math.min(8, Math.max(0, logic.openingPrimary || 0));
+      rank -= Math.max(0, (logic.singleMoveStreakMax || 0) - 2) * 3;
+      rank -= Math.max(0, (logic.onlyCoverStreakMax || 0) - 1) * 4;
+      rank -= Math.max(0, (logic.onlyCoverRatio || 0) - 0.45) * 28;
+      rank -= (logic.onlyCoverHeavyCount || 0) * 4;
+      rank -= (logic.onlyCoverLongSpanCount || 0) * 3;
+      rank -= (logic.onlyCoverRemoteCount || 0) * 3;
+      rank -= Math.max(0, (stats.longSegmentCount || 0) - 1) * 2;
+      rank += Math.min(6, (min.removedClues || 0) * 0.5);
+      rank -= Math.max(0, (stats.clueCount || 0) - Math.ceil(stats.blackCount * 0.55)) * 0.8;
+      return rank;
+    }
+
+    function finalizeCandidate(puzzle, finalCheck, fullCheck, attempt, candidateIndex, totalCandidates) {
+      const finalLogic = !finalCheck.aborted && finalCheck.solutionCount === 1 ? logicSolvePuzzle(puzzle, true) : { solved: false, progress: 0, placed: 0, totalBulbs: 0, stepCount: 0 };
+      puzzle.uniqueness = finalCheck.solutionCount === 1 ? "unique" : finalCheck.solutionCount === 0 ? "none" : "multiple";
+      puzzle.solverNodes = Math.max(fullCheck?.nodeCount || 0, finalCheck.nodeCount || 0, puzzle.solverNodes || 0);
+      puzzle.logicSolved = !!finalLogic.solved;
+      puzzle.logicProgress = finalLogic.progress || 0;
+      puzzle.logicPlaced = finalLogic.placed || 0;
+      puzzle.logicTotalBulbs = finalLogic.totalBulbs || 0;
+      puzzle.logicSteps = finalLogic.stepCount || 0;
+      puzzle.generationAttempts = attempt + 1;
+      puzzle.candidateIndex = candidateIndex;
+      puzzle.candidatePoolSize = totalCandidates;
+      puzzle.quality = evaluatePuzzleQuality(puzzle, finalCheck);
+      puzzle.rankValue = candidateRankValue(puzzle);
+      return puzzle;
+    }
+
+    function generatePuzzle(rows, cols, generationOptions, seed) {
+      const rng = makeRng(seed);
+      const gen = typeof generationOptions === "object" && generationOptions ? generationOptions : {};
+      const requireLogical = gen.allowLookahead !== true;
+      const clueReduction = gen.clueReduction || "uniqueLimit";
+      const opts = DIFFICULTY.normal;
+      const area = rows * cols;
+      const eqSize = Math.sqrt(area);
+      const sizeFactor = eqSize >= 19 ? 0.16 : eqSize >= 17 ? 0.22 : eqSize >= 15 ? 0.30 : eqSize >= 13 ? 0.42 : eqSize >= 11 ? 0.55 : eqSize >= 9 ? 0.75 : 1;
+      // No hard attempt cap: keep generating until at least one matching puzzle is found.
+      // A cap previously caused a fallback 7x7 puzzle under stricter settings.
+      // In the play-oriented build, do not keep searching for a larger candidate pool.
+      // Returning the first matching candidate avoids long waits while still preventing
+      // fallback to a different board size.
+      const targetCandidates = 1;
+      const minCandidateTries = 1;
+      const adjustedBlackRate = Math.min(0.42, opts.blackRate + (eqSize >= 17 ? 0.055 : eqSize >= 15 ? 0.040 : eqSize >= 13 ? 0.025 : 0));
+      const cappedLargeBoard = clueReduction === "capped";
+      const candidates = [];
+      let lastAttempt = 0;
+
+      for (let attempt = 0; ; attempt++) {
+        lastAttempt = attempt + 1;
+        const layout = createBlackLayout(rows, cols, rng, adjustedBlackRate);
+        if (!layout) continue;
+        layout.seed = seed;
+        const solution = generateSolutionForLayout(layout, rng);
+        if (!solution) continue;
+        const tmp = { rows, cols, cells: layout.cells, solution, seed };
+        const answerState = { bulbs: solution, marks: makeMatrix(rows, cols, false) };
+        const analysis = computeAnalysis(tmp, answerState, true);
+        if (!analysis.solved) continue;
+
+        const fullCluePuzzle = buildPuzzleWithAllClues(tmp, solution);
+        const fullCheck = solvePuzzle(fullCluePuzzle, 2);
+        if (fullCheck.aborted || fullCheck.solutionCount !== 1) continue;
+
+        const reduced = cappedLargeBoard
+          ? removeCluesWithUniqueCap(fullCluePuzzle, rng, Math.max(28, Math.floor(area * 0.22)))
+          : removeCluesToUniqueLimit(fullCluePuzzle, rng);
+        const finalCheck = solvePuzzle(reduced, 2);
+        if (finalCheck.aborted || finalCheck.solutionCount !== 1) continue;
+        if (requireLogical) {
+          const logicCheck = logicSolvePuzzle(reduced, false);
+          if (!logicCheck.solved) continue;
+        }
+
+        reduced.generationOptions = { allowLookahead: !requireLogical, clueReduction };
+        finalizeCandidate(reduced, finalCheck, fullCheck, attempt, candidates.length + 1, 0);
+        candidates.push(reduced);
+
+        if (candidates.length >= targetCandidates && attempt + 1 >= minCandidateTries) break;
+      }
+
+      if (candidates.length) {
+        candidates.sort((a, b) => (b.rankValue || 0) - (a.rankValue || 0));
+        const best = candidates[0];
+        best.candidatePoolSize = candidates.length;
+        best.candidateRank = 1;
+        best.generationAttempts = lastAttempt;
+        best.selectionMode = `${clueReduction === "capped" ? "capped deletion" : "unique-limit"} / ${requireLogical ? "no-lookahead" : "lookahead-allowed"}`;
+        best.generationOptions = { allowLookahead: !requireLogical, clueReduction };
+        return best;
+      }
+
+      // The loop above returns once a matching candidate is found.
+    }
+
+    function fallbackPuzzle(seed) {
+      const map = [
+        ".2..#..",
+        "#...#1.",
+        "..#....",
+        ".#..2#.",
+        "....#..",
+        ".0#...#",
+        "..#..1."
+      ];
+      const solutionCoords = new Set(["0,0","0,3","1,2","2,5","3,0","3,4","4,2","5,5","6,1","6,4"]);
+      const rows = 7, cols = 7;
+      const cells = map.map(row => row.split("").map(ch => {
+        if (ch === ".") return { kind: "white" };
+        if (ch === "#") return { kind: "black", clue: null };
+        return { kind: "black", clue: Number(ch) };
+      }));
+      const solution = makeMatrix(rows, cols, false);
+      for (const k of solutionCoords) {
+        const [r,c] = parseKey(k); solution[r][c] = true;
+      }
+      return { rows, cols, cells, solution, seed, uniqueness: "unknown", solverNodes: 0 };
+    }
+
+    function solvePuzzle(puzzle, maxSolutions = 2) {
+      const idxOf = makeMatrix(puzzle.rows, puzzle.cols, -1);
+      const positions = [];
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          if (isWhite(puzzle, r, c)) {
+            idxOf[r][c] = positions.length;
+            positions.push([r, c]);
+          }
+        }
+      }
+      const n = positions.length;
+      const lightCandidates = Array.from({ length: n }, () => []);
+      const conflictList = Array.from({ length: n }, () => []);
+      const conflictSet = Array.from({ length: n }, () => new Set());
+      const clues = [];
+
+      for (let i = 0; i < n; i++) {
+        const [r, c] = positions[i];
+        const lightSet = new Set([i]);
+        for (const [dr, dc] of DIRS) {
+          let rr = r + dr, cc = c + dc;
+          while (isWhite(puzzle, rr, cc)) {
+            const j = idxOf[rr][cc];
+            lightSet.add(j);
+            conflictSet[i].add(j);
+            rr += dr; cc += dc;
+          }
+        }
+        lightCandidates[i] = Array.from(lightSet).sort((a, b) => a - b);
+      }
+      for (let i = 0; i < n; i++) {
+        // Make conflicts symmetric. The directional scan above already sees both sides over all cells,
+        // but explicitly mirroring keeps the solver robust if this code is changed later.
+        for (const j of Array.from(conflictSet[i])) conflictSet[j].add(i);
+      }
+      for (let i = 0; i < n; i++) conflictList[i] = Array.from(conflictSet[i]).sort((a, b) => a - b);
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          const cell = puzzle.cells[r][c];
+          if (cell.kind === "black" && cell.clue !== null) {
+            const adjs = [];
+            for (const [dr, dc] of DIRS) {
+              const rr = r + dr, cc = c + dc;
+              if (isWhite(puzzle, rr, cc)) adjs.push(idxOf[rr][cc]);
+            }
+            clues.push({ clue: cell.clue, adjs });
+          }
+        }
+      }
+
+      const solutions = [];
+      let nodeCount = 0;
+      let aborted = false;
+      const area = puzzle.rows * puzzle.cols;
+      const nodeLimit = area <= 81 ? 220000 : area <= 121 ? 420000 : area <= 225 ? 520000 : 360000;
+
+      function cloneAssign(assign) {
+        return new Int8Array(assign);
+      }
+
+      function force(assign, idx, val) {
+        if (assign[idx] === val) return true;
+        if (assign[idx] !== -1) return false;
+        assign[idx] = val;
+        if (val === 1) {
+          for (const j of conflictList[idx]) {
+            if (!force(assign, j, 0)) return false;
+          }
+        }
+        return true;
+      }
+
+      function propagate(assign) {
+        let changed = true;
+        while (changed) {
+          changed = false;
+          function setVal(idx, val) {
+            if (assign[idx] === val) return true;
+            if (assign[idx] !== -1) return false;
+            assign[idx] = val;
+            changed = true;
+            if (val === 1) {
+              for (const j of conflictList[idx]) {
+                if (!setVal(j, 0)) return false;
+              }
+            }
+            return true;
+          }
+
+          for (const item of clues) {
+            let on = 0;
+            const unknowns = [];
+            for (const idx of item.adjs) {
+              if (assign[idx] === 1) on++;
+              else if (assign[idx] === -1) unknowns.push(idx);
+            }
+            if (on > item.clue) return false;
+            if (on + unknowns.length < item.clue) return false;
+            if (on === item.clue) {
+              for (const idx of unknowns) if (!setVal(idx, 0)) return false;
+            } else if (on + unknowns.length === item.clue) {
+              for (const idx of unknowns) if (!setVal(idx, 1)) return false;
+            }
+          }
+
+          for (let i = 0; i < n; i++) {
+            let lit = false;
+            const unknowns = [];
+            for (const j of lightCandidates[i]) {
+              if (assign[j] === 1) { lit = true; break; }
+              if (assign[j] === -1) unknowns.push(j);
+            }
+            if (!lit) {
+              if (unknowns.length === 0) return false;
+              if (unknowns.length === 1) {
+                if (!setVal(unknowns[0], 1)) return false;
+              }
+            }
+          }
+        }
+        return true;
+      }
+
+      function clueCounts(assign, item) {
+        let on = 0;
+        const unknowns = [];
+        for (const idx of item.adjs) {
+          if (assign[idx] === 1) on++;
+          else if (assign[idx] === -1) unknowns.push(idx);
+        }
+        return { on, unknowns };
+      }
+
+      function isLitByAssignment(assign, idx) {
+        for (const j of lightCandidates[idx]) if (assign[j] === 1) return true;
+        return false;
+      }
+
+      function solutionFromAssign(assign) {
+        const bulbs = makeMatrix(puzzle.rows, puzzle.cols, false);
+        for (let i = 0; i < n; i++) {
+          if (assign[i] === 1) {
+            const [r, c] = positions[i];
+            bulbs[r][c] = true;
+          }
+        }
+        return bulbs;
+      }
+
+      function search(inputAssign) {
+        if (solutions.length >= maxSolutions || aborted) return;
+        nodeCount++;
+        if (nodeCount > nodeLimit) { aborted = true; return; }
+        const assign = cloneAssign(inputAssign);
+        if (!propagate(assign)) return;
+
+        let bestClue = null;
+        for (const item of clues) {
+          const { on, unknowns } = clueCounts(assign, item);
+          if (on < item.clue) {
+            if (!bestClue || unknowns.length < bestClue.unknowns.length) bestClue = { item, unknowns };
+          }
+        }
+        if (bestClue) {
+          for (const idx of bestClue.unknowns) {
+            const next = cloneAssign(assign);
+            if (force(next, idx, 1)) search(next);
+            if (solutions.length >= maxSolutions || aborted) return;
+          }
+          return;
+        }
+
+        let bestLight = null;
+        for (let i = 0; i < n; i++) {
+          if (isLitByAssignment(assign, i)) continue;
+          const candidates = lightCandidates[i].filter(j => assign[j] === -1);
+          if (candidates.length === 0) return;
+          if (!bestLight || candidates.length < bestLight.candidates.length) bestLight = { idx: i, candidates };
+        }
+        if (bestLight) {
+          for (const idx of bestLight.candidates) {
+            const next = cloneAssign(assign);
+            if (force(next, idx, 1)) search(next);
+            if (solutions.length >= maxSolutions || aborted) return;
+          }
+          return;
+        }
+
+        solutions.push(solutionFromAssign(assign));
+        if (solutions.length >= maxSolutions) return;
+
+        // Any still-unknown bulb position would create another valid solution if it can be forced on.
+        // This catches non-minimal extra-bulb variants after all cells are already lit and all clues are exact.
+        for (let i = 0; i < n; i++) {
+          if (assign[i] !== -1) continue;
+          const next = cloneAssign(assign);
+          if (force(next, i, 1)) search(next);
+          if (solutions.length >= maxSolutions || aborted) return;
+        }
+      }
+
+      const initial = new Int8Array(n);
+      initial.fill(-1);
+      search(initial);
+      return {
+        solutionCount: Math.min(solutions.length, maxSolutions),
+        firstSolution: solutions[0] || null,
+        nodeCount,
+        aborted,
+      };
+    }
+
+    const els = {
+      board: document.getElementById("board"),
+      boardPanel: document.querySelector(".board-panel"),
+      status: document.getElementById("status"),
+      detailContent: document.getElementById("detailContent"),
+      detailsBtn: document.getElementById("detailsBtn"),
+      detailsModal: document.getElementById("detailsModal"),
+      detailsCloseBtn: document.getElementById("detailsCloseBtn"),
+      newBtn: document.getElementById("newBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      answerBtn: document.getElementById("answerBtn"),
+      langBtn: document.getElementById("langBtn"),
+      sizeSelect: document.getElementById("sizeSelect"),
+      lookaheadSelect: document.getElementById("lookaheadSelect"),
+      clueModeSelect: document.getElementById("clueModeSelect"),
+      seedInput: document.getElementById("seedInput"),
+      seedBtn: document.getElementById("seedBtn"),
+      toast: document.getElementById("toast"),
+    };
+
+    let lang = "ja";
+    let puzzle = null;
+    let state = null;
+    let checkMode = false;
+    let showAnswer = false;
+    let isGenerating = false;
+    let clueModeBeforeForced = null;
+
+    function t(key) { return I18N[lang][key] || key; }
+
+    function randomSeed() {
+      return `lightup-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e7).toString(36)}`;
+    }
+
+    function setToast(message) {
+      els.toast.textContent = message || "";
+    }
+
+    function setGenerating(active) {
+      isGenerating = !!active;
+      document.body.classList.toggle("generating", isGenerating);
+      [els.newBtn, els.resetBtn, els.answerBtn, els.seedBtn, els.langBtn, els.sizeSelect, els.lookaheadSelect, els.seedInput, els.detailsBtn]
+        .filter(Boolean)
+        .forEach(el => { el.disabled = isGenerating; });
+      if (els.clueModeSelect) els.clueModeSelect.disabled = isGenerating || isForcedCappedBoard();
+      if (!isGenerating) updateForcedOptions();
+    }
+
+    function nextFrame() {
+      return new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+
+    function applyI18n() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        el.textContent = t(key);
+      });
+      els.langBtn.textContent = lang === "ja" ? "English" : "日本語";
+      document.querySelectorAll("[data-tip]").forEach(el => {
+        const key = el.getAttribute("data-tip");
+        el.title = t(key);
+      });
+      els.answerBtn.textContent = showAnswer ? t("hideAnswer") : t("showAnswer");
+      updateForcedOptions();
+      render();
+    }
+
+    function parseBoardSize(value) {
+      const parts = String(value || "10x10").toLowerCase().split("x").map(v => Number(v.trim()));
+      const rows = Number.isFinite(parts[0]) && parts[0] > 0 ? Math.floor(parts[0]) : 10;
+      const cols = Number.isFinite(parts[1]) && parts[1] > 0 ? Math.floor(parts[1]) : rows;
+      return { rows, cols, label: `${cols} x ${rows}` };
+    }
+
+
+    function isForcedCappedBoard() {
+      return els.sizeSelect && els.sizeSelect.value === "24x14";
+    }
+
+    function updateForcedOptions() {
+      if (!els.clueModeSelect) return;
+      const forced = isForcedCappedBoard();
+      if (forced) {
+        if (clueModeBeforeForced === null) clueModeBeforeForced = els.clueModeSelect.value || "uniqueLimit";
+        els.clueModeSelect.value = "capped";
+        els.clueModeSelect.disabled = true;
+        els.clueModeSelect.title = t("tipForcedCapped");
+        els.clueModeSelect.closest("label")?.classList.add("forced-option");
+      } else {
+        if (clueModeBeforeForced !== null) {
+          els.clueModeSelect.value = clueModeBeforeForced;
+          clueModeBeforeForced = null;
+        }
+        els.clueModeSelect.disabled = isGenerating;
+        els.clueModeSelect.title = t("tipClueModeSelect");
+        els.clueModeSelect.closest("label")?.classList.remove("forced-option");
+      }
+    }
+
+    async function newPuzzle(seed = randomSeed(), toastKey = "generated") {
+      if (isGenerating) return;
+      setGenerating(true);
+      setToast(t("generating"));
+      // Let the browser paint the wait cursor and disabled controls before the
+      // synchronous generator starts doing heavier solver work.
+      await nextFrame();
+      try {
+        updateForcedOptions();
+        const dims = parseBoardSize(els.sizeSelect.value);
+        const generationOptions = {
+          allowLookahead: els.lookaheadSelect.value === "allow",
+          clueReduction: isForcedCappedBoard() ? "capped" : (els.clueModeSelect.value || "uniqueLimit"),
+        };
+        puzzle = generatePuzzle(dims.rows, dims.cols, generationOptions, seed);
+        state = createEmptyState(puzzle);
+        checkMode = false;
+        showAnswer = false;
+        els.seedInput.value = seed;
+        setToast(t(toastKey));
+        render();
+      } finally {
+        setGenerating(false);
+      }
+    }
+
+    function resetBoard() {
+      state = createEmptyState(puzzle);
+      checkMode = false;
+      showAnswer = false;
+      setToast(t("resetDone"));
+      render();
+    }
+
+    function toggleBulb(r, c) {
+      if (!isWhite(puzzle, r, c)) return;
+      showAnswer = false;
+      checkMode = false;
+      if (state.bulbs[r][c]) {
+        state.bulbs[r][c] = false;
+      } else {
+        state.marks[r][c] = false;
+        state.bulbs[r][c] = true;
+      }
+      setToast("");
+      render();
+    }
+
+    function toggleMark(r, c) {
+      if (!isWhite(puzzle, r, c)) return;
+      showAnswer = false;
+      checkMode = false;
+      if (state.marks[r][c]) {
+        state.marks[r][c] = false;
+      } else {
+        state.bulbs[r][c] = false;
+        state.marks[r][c] = true;
+      }
+      setToast("");
+      render();
+    }
+
+    function updateBoardScale() {
+      if (!puzzle || !els.board || !els.boardPanel) return;
+      const panel = els.boardPanel;
+      const cs = getComputedStyle(panel);
+      const padX = parseFloat(cs.paddingLeft || 0) + parseFloat(cs.paddingRight || 0);
+      const padY = parseFloat(cs.paddingTop || 0) + parseFloat(cs.paddingBottom || 0);
+      const gap = 2;
+      const boardPadding = 8;
+      const safe = 4;
+      const availableW = Math.max(120, panel.clientWidth - padX - safe);
+      let availableH = panel.clientHeight - padY - safe;
+      if (!Number.isFinite(availableH) || availableH < 120 || window.matchMedia("(max-width: 850px)").matches) {
+        availableH = Math.max(240, window.innerHeight * 0.68);
+      }
+      const cellByW = (availableW - boardPadding - gap * (puzzle.cols - 1)) / puzzle.cols;
+      const cellByH = (availableH - boardPadding - gap * (puzzle.rows - 1)) / puzzle.rows;
+      const maxCell = puzzle.rows * puzzle.cols >= 300 ? 34 : puzzle.rows * puzzle.cols >= 220 ? 40 : 56;
+      const cellSize = Math.max(10, Math.floor(Math.min(maxCell, cellByW, cellByH)));
+      els.board.style.setProperty("--cell-size", `${cellSize}px`);
+    }
+
+    function renderBoard(analysis) {
+      els.board.innerHTML = "";
+      els.board.style.setProperty("--rows", puzzle.rows);
+      els.board.style.setProperty("--cols", puzzle.cols);
+      updateBoardScale();
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        for (let c = 0; c < puzzle.cols; c++) {
+          const cell = puzzle.cells[r][c];
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cell";
+          btn.setAttribute("aria-label", `${r + 1}, ${c + 1}`);
+
+          if (cell.kind === "black") {
+            btn.classList.add("black");
+            if (cell.clue !== null) {
+              btn.textContent = String(cell.clue);
+              const st = analysis.clueStatus[r][c];
+              if (st?.bad) btn.classList.add("clue-bad");
+              else if (st?.exact) btn.classList.add("clue-ok");
+            }
+            btn.disabled = true;
+          } else {
+            btn.classList.add("white");
+            if (analysis.lit[r][c]) btn.classList.add("lit");
+            else btn.classList.add("unlit");
+            if (analysis.conflict[r][c]) btn.classList.add("conflict");
+            if (state.bulbs[r][c]) {
+              const bulb = document.createElement("span");
+              bulb.className = "bulb-icon";
+              btn.appendChild(bulb);
+            } else if (state.marks[r][c]) {
+              const mark = document.createElement("span");
+              mark.className = "mark-icon";
+              mark.textContent = "×";
+              btn.appendChild(mark);
+            }
+            if (showAnswer && puzzle.solution?.[r]?.[c]) {
+              const dot = document.createElement("span");
+              dot.className = "answer-dot";
+              btn.appendChild(dot);
+            }
+            btn.addEventListener("click", () => toggleBulb(r, c));
+            btn.addEventListener("contextmenu", (event) => {
+              event.preventDefault();
+              toggleMark(r, c);
+            });
+          }
+          els.board.appendChild(btn);
+        }
+      }
+    }
+
+    function renderStatus(analysis) {
+      els.status.innerHTML = "";
+      const q = puzzle.quality || evaluatePuzzleQuality(puzzle);
+      puzzle.quality = q;
+      const diff = puzzle.difficultyEval || evaluatePuzzleDifficulty(puzzle, q);
+      puzzle.difficultyEval = diff;
+      const rows = [
+        [t("statusDifficulty"), `${diff.band} ${lang === "ja" ? diff.labelJa : diff.labelEn} (${diff.score})`, "solved"],
+        [t("qualityScore"), `${q.score}/100`, q.score >= 70 ? "solved" : q.score >= 50 ? "warn" : "bad"],
+        [t("unlit"), analysis.unlitWhiteCount, analysis.unlitWhiteCount === 0 ? "" : "warn"],
+        [t("conflicts"), analysis.conflictBulbCount, analysis.conflictBulbCount === 0 ? "" : "bad"],
+        [t("clueBad"), analysis.clueViolationCount, analysis.clueViolationCount === 0 ? "" : "bad"],
+        [t("solved"), analysis.solved ? t("solvedText") : t("notYet"), analysis.solved ? "solved" : ""],
+      ];
+      for (const [label, value, cls] of rows) {
+        const div = document.createElement("div");
+        div.className = `status-row ${cls}`;
+        const left = document.createElement("span");
+        left.textContent = label;
+        const right = document.createElement("strong");
+        right.textContent = String(value);
+        div.append(left, right);
+        els.status.appendChild(div);
+      }
+    }
+
+    function pct(value) {
+      return `${Math.round((value || 0) * 100)}%`;
+    }
+
+    function fixed(value, digits = 1) {
+      return Number.isFinite(value) ? value.toFixed(digits) : "-";
+    }
+
+    function techLabel(key) {
+      const labels = lang === "ja"
+        ? { clueSatisfied: "数字満了→禁止", clueAllNeeded: "数字不足分すべて照明", onlyCover: "唯一照明候補", lineConflict: "照明直線→禁止" }
+        : { clueSatisfied: "Clue filled → forbid", clueAllNeeded: "All remaining clue cells", onlyCover: "Only possible cover", lineConflict: "Bulb line conflict forbid" };
+      return labels[key] || key;
+    }
+
+    function metric(label, value, tipText = "") {
+      const box = document.createElement("div");
+      box.className = "debug-metric";
+      if (tipText) box.title = tipText;
+      const s = document.createElement("span");
+      s.textContent = label;
+      if (tipText) s.title = tipText;
+      const strong = document.createElement("strong");
+      strong.textContent = String(value);
+      if (tipText) strong.title = tipText;
+      box.append(s, strong);
+      return box;
+    }
+
+    function addDebugSection(parent, title, children) {
+      const section = document.createElement("div");
+      section.className = "debug-section";
+      const h = document.createElement("h3");
+      h.textContent = title;
+      section.appendChild(h);
+      for (const child of children) section.appendChild(child);
+      parent.appendChild(section);
+    }
+
+    function makeMetricGrid(items) {
+      const grid = document.createElement("div");
+      grid.className = "debug-grid";
+      for (const item of items) {
+        const [label, value, tipText] = item;
+        grid.appendChild(metric(label, value, tipText || ""));
+      }
+      return grid;
+    }
+
+    function tipText(key) {
+      const tips = {
+        ja: {
+          observedScore: "解き味を示す観察用スコアです。入口の少なさ、only-cover偏重、数字配置の偏りなどを減点して算出します。採用条件ではなく調整用の値です。",
+          difficulty: "解くときの認知負荷を示す評価です。論理ラウンド数、進行幅、only-cover、長い通路などから推定します。",
+          rankValue: "候補が複数ある場合に、表示候補を選ぶための内部順位値です。現在の通常生成では主に参考値です。",
+          generationAttempts: "この問題が出るまでに試した候補盤面数です。条件が厳しいほど大きくなります。",
+          candidatePool: "最終選考に入った候補数です。現在は待ち時間を抑えるため通常1件です。",
+          solverNodes: "完全ソルバーが一意解判定で探索した節点数です。大きいほど一意性確認が重い傾向があります。",
+          generationMode: "数字削除方式と仮置き許容設定を組み合わせた生成モードです。",
+          guessingOption: "仮置きを許容しない場合、論理ソルバーで完走できる問題だけを採用します。",
+          clueRemovalOption: "数字をどこまで削るかの設定です。14 x 24 は上限付き削除に固定されます。",
+          removalCriterion: "数字ヒントを削るときに守る条件です。一意解限界では、削っても一意解なら削除します。",
+          initialClues: "完成解から最初に算出された数字ヒント数です。",
+          finalClues: "最終的に盤面に残った数字ヒント数です。",
+          removedClues: "削除された数字ヒント数です。",
+          deletionTests: "数字を削れるかどうか試した回数です。",
+          deletionPasses: "削除候補を一巡する処理を何回行ったかです。",
+          primaryMoves: "論理ソルバーが実際に置く照明や禁止を確定した主手筋数です。",
+          logicRounds: "確定手をまとめて進めた局面数です。多いほど解く手数が多い傾向があります。",
+          avgMovesPerRound: "1局面あたり平均して何個の主手筋が進んだかです。低いほど一手ずつ探す感覚が強くなります。",
+          openingMoves: "初期盤面からすぐ見つかる主手筋数です。少なすぎると入口が見えにくくなります。",
+          singleMoveStreak: "1手しか進まない局面が最大で何回連続したかです。長いと詰まりやすく感じます。",
+          maxStepDifficulty: "論理ソルバーが使った手筋の最大難度です。主に遠いonly-coverなどで上がります。",
+          avgStepDifficulty: "全手筋の平均難度です。",
+          onlyCoverRatio: "照らされるべき白マスを照らせる候補が1か所だけ、という手筋の比率です。多いと候補探索寄りの解き味になります。",
+          heavyOnlyCover: "長い視線確認や数字から離れた唯一照明候補など、見つけにくいonly-coverの数です。",
+          longSegments: "白マスが長くつながった行・列セグメント数です。多いほど候補探索が広がります。",
+          solvedLogically: "仮置きなしの基本論理ソルバーで最後まで解けるかです。通常画面ではヒント化を避けるため非表示にしています。",
+          openingDeterminations: "初期局面で照明・禁止として確定した総セル数です。",
+          openingOnlyCover: "初期局面の入口手筋のうちonly-coverに由来するものです。",
+          onlyCoverStreak: "only-cover手筋が最大で何回連続したかです。",
+          broadOnlyCover: "候補確認範囲が広いonly-coverの数です。",
+          longSpanOnlyCover: "特に長い距離を見通すonly-coverの数です。",
+          maxOnlyCoverSpan: "only-cover判定で確認された最大スパンです。",
+          nonClueOnlyCover: "数字マスに隣接しない白マスを起点にしたonly-coverの数です。",
+          whiteCells: "白マスの数です。",
+          blackCells: "黒マスの数です。",
+          numberedClues: "数字が表示されている黒マスの数です。",
+          clueDensity: "黒マスのうち数字が残っている割合です。",
+          maxWhiteSegment: "黒マスに遮られず一直線につながる白マス列の最大長です。",
+          avgWhiteSegment: "白マス直線セグメントの平均長です。",
+          zeroFourCount: "0 と 4 の数字ヒント数です。強い手がかりなので多すぎると単調になりやすい値です。",
+          blackImbalance: "黒マスが盤面の一部に偏っている度合いです。",
+          clueImbalance: "数字ヒントが盤面の一部に偏っている度合いです。"
+        },
+        en: {
+          observedScore: "Observed quality score. It penalizes weak openings, only-cover dependence, clue imbalance, and similar factors. It is for tuning, not a rule guarantee.",
+          difficulty: "Estimated solving load based on logical rounds, move width, only-cover use, long segments, and related factors.",
+          rankValue: "Internal candidate ranking value. Mostly informational in the current one-candidate generation flow.",
+          generationAttempts: "Number of candidate boards tried before this puzzle was produced. Stricter settings usually increase it.",
+          candidatePool: "Number of candidates in the final pool. Usually one in this play-oriented build to reduce waiting time.",
+          solverNodes: "Search nodes used by the complete solver while checking uniqueness.",
+          generationMode: "Combination of clue-removal mode and guessing option used to generate the puzzle.",
+          guessingOption: "When guessing is not allowed, only puzzles solvable by the logical solver are accepted.",
+          clueRemovalOption: "How aggressively numbered clues are removed. 14 x 24 is forced to capped removal.",
+          removalCriterion: "Criterion used while removing numbered clues. Unique-limit removal deletes a clue if uniqueness is preserved.",
+          initialClues: "Number of clues initially computed from the completed solution.",
+          finalClues: "Number of numbered clues left on the final board.",
+          removedClues: "Number of numbered clues removed.",
+          deletionTests: "Number of clue-deletion tests performed.",
+          deletionPasses: "Number of passes through the clue-deletion loop.",
+          primaryMoves: "Number of primary logical moves found by the logical solver.",
+          logicRounds: "Number of logical rounds. More rounds usually means a longer solve.",
+          avgMovesPerRound: "Average number of primary moves per round. Lower values feel more one-step-at-a-time.",
+          openingMoves: "Primary moves available at the start. Too few makes the entry point hard to see.",
+          singleMoveStreak: "Longest streak of rounds that advanced by only one move.",
+          maxStepDifficulty: "Maximum technique difficulty used by the logical solver, often raised by remote only-cover moves.",
+          avgStepDifficulty: "Average technique difficulty across the logical solve.",
+          onlyCoverRatio: "Share of moves based on a white cell having only one possible cover. High values make the puzzle feel more like candidate search.",
+          heavyOnlyCover: "Count of harder only-cover moves involving long scans or remote white-cell obligations.",
+          longSegments: "Number of long unobstructed white segments. More of these broadens candidate search.",
+          solvedLogically: "Whether the human-style logical solver can finish without guessing. Hidden from the normal screen to avoid giving hints.",
+          openingDeterminations: "Total cells determined as bulbs or forbidden in the opening round.",
+          openingOnlyCover: "Only-cover moves used in the opening round.",
+          onlyCoverStreak: "Longest streak of only-cover moves.",
+          broadOnlyCover: "Only-cover moves with a broad candidate span.",
+          longSpanOnlyCover: "Only-cover moves requiring a long line-of-sight check.",
+          maxOnlyCoverSpan: "Maximum span observed in only-cover checks.",
+          nonClueOnlyCover: "Only-cover moves whose origin white cell is not adjacent to a numbered clue.",
+          whiteCells: "Number of white cells.",
+          blackCells: "Number of black cells.",
+          numberedClues: "Number of black cells with visible numeric clues.",
+          clueDensity: "Share of black cells that keep numeric clues.",
+          maxWhiteSegment: "Maximum length of an unobstructed white row/column segment.",
+          avgWhiteSegment: "Average white segment length.",
+          zeroFourCount: "Number of 0 and 4 clues. They are strong clues; too many can feel mechanical.",
+          blackImbalance: "How unevenly black cells are distributed across the board.",
+          clueImbalance: "How unevenly numbered clues are distributed across the board."
+        }
+      };
+      return tips[lang]?.[key] || "";
+    }
+
+    function makeProgressProfile(values) {
+      const wrap = document.createElement("div");
+      wrap.className = "debug-profile";
+      const max = Math.max(1, ...values);
+      const shown = values.slice(0, 36);
+      for (const v of shown) {
+        const bar = document.createElement("div");
+        bar.className = "debug-bar";
+        bar.style.height = `${Math.max(8, Math.round((v / max) * 34))}px`;
+        bar.title = String(v);
+        wrap.appendChild(bar);
+      }
+      if (shown.length === 0) {
+        const empty = document.createElement("span");
+        empty.style.color = "var(--muted)";
+        empty.style.fontSize = "12px";
+        empty.textContent = lang === "ja" ? "進行ログなし" : "No progress log";
+        wrap.appendChild(empty);
+      }
+      return wrap;
+    }
+
+    function renderDebugPanel() {
+      if (!els.detailContent || !puzzle) return;
+      const q = puzzle.quality || evaluatePuzzleQuality(puzzle);
+      puzzle.quality = q;
+      const { logic, stats } = q;
+      const diff = puzzle.difficultyEval || evaluatePuzzleDifficulty(puzzle, q);
+      puzzle.difficultyEval = diff;
+      els.detailContent.innerHTML = "";
+
+      const minStats = puzzle.minimizeStats || {};
+      addDebugSection(els.detailContent, lang === "ja" ? "総合・生成情報" : "Overall / generation", [makeMetricGrid([
+        [lang === "ja" ? "アプリバージョン" : "App version", `v${APP_VERSION}`, lang === "ja" ? "アプリ本体のバージョンです。" : "Application version."],
+        [lang === "ja" ? "観察用スコア" : "Observed score", `${q.score}/100`, tipText("observedScore")],
+        [lang === "ja" ? "難易度" : "Difficulty", `${diff.band} ${lang === "ja" ? diff.labelJa : diff.labelEn} (${diff.score}/100)`, tipText("difficulty")],
+        [lang === "ja" ? "選択用ランク" : "Selection rank value", fixed(puzzle.rankValue || q.score, 2), tipText("rankValue")],
+        [lang === "ja" ? "生成試行" : "Generation attempts", puzzle.generationAttempts || "-", tipText("generationAttempts")],
+        [lang === "ja" ? "候補数" : "Candidate pool", puzzle.candidatePoolSize || 1, tipText("candidatePool")],
+        [lang === "ja" ? "完全ソルバー節点" : "Solver nodes", puzzle.solverNodes || 0, tipText("solverNodes")],
+        [lang === "ja" ? "生成モード" : "Generation mode", puzzle.selectionMode || "unique-limit", tipText("generationMode")],
+        [lang === "ja" ? "仮置き設定" : "Guessing option", puzzle.generationOptions?.allowLookahead ? (lang === "ja" ? "許容" : "Allowed") : (lang === "ja" ? "不許容" : "Not allowed"), tipText("guessingOption")],
+        [lang === "ja" ? "数字削除設定" : "Clue removal option", puzzle.generationOptions?.clueReduction === "capped" ? (lang === "ja" ? "上限付き" : "Capped") : (lang === "ja" ? "限界削除" : "Unique limit"), tipText("clueRemovalOption")],
+      ])]);
+
+      addDebugSection(els.detailContent, lang === "ja" ? "数字削除" : "Clue minimization", [makeMetricGrid([
+        [lang === "ja" ? "削除基準" : "Removal criterion", minStats.mode === "uniqueLimit" ? (lang === "ja" ? "一意解の限界" : "Unique-solution limit") : (minStats.mode || "-"), tipText("removalCriterion")],
+        [lang === "ja" ? "初期数字数" : "Initial clues", minStats.initialClues ?? "-", tipText("initialClues")],
+        [lang === "ja" ? "最終数字数" : "Final clues", minStats.finalClues ?? stats.clueCount, tipText("finalClues")],
+        [lang === "ja" ? "削除数字数" : "Removed clues", minStats.removedClues ?? "-", tipText("removedClues")],
+        [lang === "ja" ? "削除テスト" : "Deletion tests", minStats.deletionTests ?? "-", tipText("deletionTests")],
+        [lang === "ja" ? "削除パス" : "Deletion passes", minStats.passCount ?? "-", tipText("deletionPasses")],
+      ])]);
+
+      addDebugSection(els.detailContent, lang === "ja" ? "難易度評価" : "Difficulty estimate", [makeMetricGrid([
+        [lang === "ja" ? "難易度スコア" : "Difficulty score", `${diff.score}/100`, tipText("difficulty")],
+        [lang === "ja" ? "難易度帯" : "Difficulty band", `${diff.band} ${lang === "ja" ? diff.labelJa : diff.labelEn}`, tipText("difficulty")],
+        [lang === "ja" ? "主手筋数" : "Primary moves", diff.primarySteps, tipText("primaryMoves")],
+        [lang === "ja" ? "局面数" : "Logic rounds", diff.rounds, tipText("logicRounds")],
+        [lang === "ja" ? "平均進行幅" : "Avg moves per round", fixed(diff.avgPrimaryPerRound, 2), tipText("avgMovesPerRound")],
+        [lang === "ja" ? "入口手数" : "Opening moves", diff.openingPrimary, tipText("openingMoves")],
+        [lang === "ja" ? "最大1手進行連続" : "Max single-move streak", diff.singleMoveStreakMax, tipText("singleMoveStreak")],
+        [lang === "ja" ? "最大手筋難度" : "Max step difficulty", diff.maxStepDifficulty, tipText("maxStepDifficulty")],
+        [lang === "ja" ? "平均手筋難度" : "Average step difficulty", fixed(diff.averageStepDifficulty, 2), tipText("avgStepDifficulty")],
+        [lang === "ja" ? "only-cover比率" : "Only-cover ratio", pct(diff.onlyCoverRatio), tipText("onlyCoverRatio")],
+        [lang === "ja" ? "重いonly-cover" : "Heavy only-cover", diff.onlyCoverHeavyCount, tipText("heavyOnlyCover")],
+        [lang === "ja" ? "長い通路" : "Long segments", diff.longSegmentCount, tipText("longSegments")],
+      ])]);
+
+      addDebugSection(els.detailContent, lang === "ja" ? "論理ソルバー進行" : "Logical solve progress", [
+        makeMetricGrid([
+          [lang === "ja" ? "仮置きなし完走" : "Solved logically", logic.solved ? (lang === "ja" ? "はい" : "Yes") : (lang === "ja" ? "いいえ" : "No"), tipText("solvedLogically")],
+          [lang === "ja" ? "入口の主手数" : "Opening primary moves", logic.openingPrimary, tipText("openingMoves")],
+          [lang === "ja" ? "入口の総確定数" : "Opening determinations", logic.openingDeterminations, tipText("openingDeterminations")],
+          [lang === "ja" ? "論理ラウンド数" : "Logic rounds", logic.roundSummaries.length, tipText("logicRounds")],
+          [lang === "ja" ? "最大1手進行連続" : "Max single-move streak", logic.singleMoveStreakMax, tipText("singleMoveStreak")],
+          [lang === "ja" ? "最大手筋難度" : "Max step difficulty", logic.maxStepDifficulty, tipText("maxStepDifficulty")],
+          [lang === "ja" ? "平均手筋難度" : "Average step difficulty", fixed(logic.averageStepDifficulty, 2), tipText("avgStepDifficulty")],
+          [lang === "ja" ? "only-cover比率" : "Only-cover ratio", pct(logic.onlyCoverRatio), tipText("onlyCoverRatio")],
+          [lang === "ja" ? "入口only-cover" : "Opening only-cover", logic.openingOnlyCoverCount || 0, tipText("openingOnlyCover")],
+          [lang === "ja" ? "only-cover連続" : "Only-cover streak", logic.onlyCoverStreakMax || 0, tipText("onlyCoverStreak")],
+          [lang === "ja" ? "重いonly-cover" : "Heavy only-cover", logic.onlyCoverHeavyCount || 0, tipText("heavyOnlyCover")],
+          [lang === "ja" ? "広域only-cover" : "Broad only-cover", logic.onlyCoverBroadSpanCount || 0, tipText("broadOnlyCover")],
+          [lang === "ja" ? "長距離only-cover" : "Long-span only-cover", logic.onlyCoverLongSpanCount || 0, tipText("longSpanOnlyCover")],
+          [lang === "ja" ? "最大only-cover幅" : "Max only-cover span", logic.onlyCoverMaxSpan || 0, tipText("maxOnlyCoverSpan")],
+          [lang === "ja" ? "数字非隣接only-cover" : "Non-clue-adjacent only-cover", logic.onlyCoverNonClueAdjacentCount || 0, tipText("nonClueOnlyCover")],
+        ]),
+        makeProgressProfile(logic.progressProfile || []),
+      ]);
+
+      const table = document.createElement("table");
+      table.className = "debug-table";
+      table.innerHTML = `<thead><tr><th>${lang === "ja" ? "手筋" : "Technique"}</th><th>${lang === "ja" ? "回数" : "Count"}</th></tr></thead>`;
+      const tbody = document.createElement("tbody");
+      for (const key of ["clueSatisfied", "clueAllNeeded", "onlyCover", "lineConflict"]) {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td");
+        const td2 = document.createElement("td");
+        td1.textContent = techLabel(key);
+        td2.textContent = String(logic.techniqueCounts?.[key] || 0);
+        const techniqueTips = {
+          clueSatisfied: lang === "ja" ? "数字ヒントがすでに満たされたため、周囲の残り候補を禁止する手筋です。" : "A clue is already satisfied, so remaining adjacent candidates are forbidden.",
+          clueAllNeeded: lang === "ja" ? "数字ヒントを満たすには、残り候補をすべて照明にする必要がある手筋です。" : "All remaining adjacent candidates must be bulbs to satisfy a clue.",
+          onlyCover: lang === "ja" ? "ある白マスを照らせる候補が1か所しか残っていないため、そこを照明にする手筋です。" : "A white cell has only one remaining possible cell that can light it.",
+          lineConflict: lang === "ja" ? "照明を置いた結果、同じ行・列で見える候補を禁止する伝播です。" : "After a bulb is placed, visible cells in the same row/column are forbidden."
+        };
+        tr.title = techniqueTips[key] || "";
+        tr.append(td1, td2);
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      addDebugSection(els.detailContent, lang === "ja" ? "手筋内訳" : "Technique breakdown", [table]);
+
+      addDebugSection(els.detailContent, lang === "ja" ? "盤面構造" : "Board structure", [makeMetricGrid([
+        [lang === "ja" ? "白マス" : "White cells", stats.whiteCount, tipText("whiteCells")],
+        [lang === "ja" ? "黒マス" : "Black cells", stats.blackCount, tipText("blackCells")],
+        [lang === "ja" ? "数字ヒント" : "Numbered clues", stats.clueCount, tipText("numberedClues")],
+        [lang === "ja" ? "数字密度" : "Clue density", pct(stats.clueDensity), tipText("clueDensity")],
+        [lang === "ja" ? "最大白通路長" : "Max white segment", stats.maxSegmentLength, tipText("maxWhiteSegment")],
+        [lang === "ja" ? `長い通路数（${stats.longThreshold}+）` : `Long segments (${stats.longThreshold}+)`, stats.longSegmentCount, tipText("longSegments")],
+        [lang === "ja" ? "平均白通路長" : "Avg white segment", fixed(stats.avgSegmentLength, 2), tipText("avgWhiteSegment")],
+        [lang === "ja" ? "0/4ヒント数" : "0/4 clue count", stats.zeroFourCount, tipText("zeroFourCount")],
+        [lang === "ja" ? "黒マス偏り" : "Black imbalance", fixed(stats.blackImbalance, 2), tipText("blackImbalance")],
+        [lang === "ja" ? "数字偏り" : "Clue imbalance", fixed(stats.clueImbalance, 2), tipText("clueImbalance")],
+      ])]);
+
+      const clueGrid = makeMetricGrid([
+        ["0", stats.clueDist[0]], ["1", stats.clueDist[1]], ["2", stats.clueDist[2]], ["3", stats.clueDist[3]], ["4", stats.clueDist[4]], [lang === "ja" ? "数字なし" : "No clue", stats.clueDist.none],
+      ]);
+      addDebugSection(els.detailContent, lang === "ja" ? "数字分布" : "Clue distribution", [clueGrid]);
+
+      const ul = document.createElement("ul");
+      ul.className = "debug-list";
+      const notes = q.notes && q.notes.length ? q.notes : [lang === "ja" ? "大きな減点項目なし" : "No major penalty notes"];
+      for (const note of notes) {
+        const li = document.createElement("li");
+        li.textContent = note;
+        ul.appendChild(li);
+      }
+      addDebugSection(els.detailContent, lang === "ja" ? "暫定メモ" : "Provisional notes", [ul]);
+    }
+
+    function render() {
+      if (!puzzle || !state) return;
+      const analysis = computeAnalysis(puzzle, state, checkMode);
+      renderBoard(analysis);
+      renderStatus(analysis);
+      if (els.detailsModal?.classList.contains("open")) renderDebugPanel();
+      els.answerBtn.textContent = showAnswer ? t("hideAnswer") : t("showAnswer");
+      if (analysis.solved) setToast(t("solvedText"));
+    }
+
+    function openDetailsModal() {
+      renderDebugPanel();
+      els.detailsModal.classList.add("open");
+      els.detailsModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeDetailsModal() {
+      els.detailsModal.classList.remove("open");
+      els.detailsModal.setAttribute("aria-hidden", "true");
+    }
+
+    els.detailsBtn.addEventListener("click", openDetailsModal);
+    els.detailsCloseBtn.addEventListener("click", closeDetailsModal);
+    els.detailsModal.addEventListener("click", (event) => {
+      if (event.target === els.detailsModal) closeDetailsModal();
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && els.detailsModal.classList.contains("open")) closeDetailsModal();
+    });
+
+    els.newBtn.addEventListener("click", () => newPuzzle());
+    els.resetBtn.addEventListener("click", resetBoard);
+    els.answerBtn.addEventListener("click", () => {
+      showAnswer = !showAnswer;
+      checkMode = false;
+      setToast(showAnswer ? t("answerOn") : t("answerOff"));
+      render();
+    });
+    els.langBtn.addEventListener("click", () => {
+      lang = lang === "ja" ? "en" : "ja";
+      applyI18n();
+    });
+    els.seedBtn.addEventListener("click", () => {
+      const seed = els.seedInput.value.trim() || randomSeed();
+      newPuzzle(seed, "seedApplied");
+    });
+    els.sizeSelect.addEventListener("change", () => { updateForcedOptions(); newPuzzle(); });
+    els.lookaheadSelect.addEventListener("change", () => newPuzzle());
+    els.clueModeSelect.addEventListener("change", () => newPuzzle());
+    window.addEventListener("resize", () => updateBoardScale());
+
+    newPuzzle();
+    applyI18n();
+  </script>
+</body>
+</html>
